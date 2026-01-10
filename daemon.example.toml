@@ -1,0 +1,41 @@
+# APFSDS Daemon Configuration
+
+[server]
+mode = "handler"  # handler | exit | all-in-one
+bind = "0.0.0.0:25347"
+location = "nanjing"
+max_connections = 10000
+
+[[exit_nodes]]
+name = "tokyo"
+endpoint = "10.0.1.100:25347"
+weight = 1.0
+location = "Tokyo, Japan"
+
+[[exit_nodes]]
+name = "singapore"
+endpoint = "10.0.1.101:25347"
+weight = 0.5
+location = "Singapore"
+
+[storage]
+tmpfs_path = "/dev/shm/apfsds"
+tmpfs_size = 536870912  # 512MB
+disk_path = "/var/lib/apfsds"
+segment_size_limit = 10485760  # 10MB
+compaction_threshold = 10
+
+[security]
+# Server secret key (hex encoded, 32 bytes)
+# server_sk = "your-server-secret-key-in-hex"
+
+# HMAC secret (hex encoded, 32 bytes)
+# hmac_secret = "your-hmac-secret-in-hex"
+
+token_ttl = 60  # seconds
+key_rotation_interval = 604800  # 7 days
+grace_period = 600  # 10 minutes
+
+[monitoring]
+prometheus_enabled = true
+prometheus_bind = "0.0.0.0:9090"

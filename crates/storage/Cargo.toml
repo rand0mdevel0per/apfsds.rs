@@ -1,0 +1,19 @@
+[package]
+name = "apfsds-storage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+apfsds-protocol = { path = "../protocol" }
+
+tokio.workspace = true
+rkyv.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+bytes.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

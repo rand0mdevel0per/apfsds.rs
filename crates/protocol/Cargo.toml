@@ -1,0 +1,15 @@
+[package]
+name = "apfsds-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rkyv.workspace = true
+bytes.workspace = true
+crc32fast.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

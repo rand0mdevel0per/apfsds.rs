@@ -1,0 +1,47 @@
+# Generated files
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Local configuration
+config.toml
+daemon.toml
+credentials.json
+*.pem
+*.key
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+.tmp/
+*.tmp
+
+# Coverage
+*.profraw
+*.profdata
+coverage/
+lcov.info
+tarpaulin-report.html
+
+# Debug
+*.dSYM/

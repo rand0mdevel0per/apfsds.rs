@@ -1,0 +1,73 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/*",
+    "daemon",
+    "client",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/rand0mdevel0per/apfsds.rs"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.26"
+futures = "0.3"
+async-trait = "0.1"
+
+# Serialization
+rkyv = { version = "0.8", features = ["bytecheck"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Crypto
+aes-gcm = "0.10"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+
+# Compression
+zstd = "0.13"
+
+# Network
+hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+http-body-util = "0.1"
+reqwest = { version = "0.12", features = ["json"] }
+
+# Storage
+sled = "0.34"
+clickhouse = "0.12"
+
+# Distributed
+openraft = "0.10"
+
+# Monitoring
+prometheus = "0.13"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utils
+anyhow = "1"
+thiserror = "1"
+dashmap = "6"
+parking_lot = "0.12"
+bytes = "1"
+crc32fast = "1"
+fastrand = "2"
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+
+# TUN (platform-specific)
+tun = { version = "0.7", features = ["async"] }
+
+# crates.io API (for emergency mode)
+crates_io_api = "0.11"

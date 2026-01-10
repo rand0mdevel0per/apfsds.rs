@@ -1,0 +1,36 @@
+# APFSDS Client Configuration
+
+[socks5]
+bind = "127.0.0.1:1080"
+auth = false
+
+[tun]
+device = "tun-apfsds"
+address = "10.0.0.2/24"
+mtu = 1500
+
+[connection]
+pool_size = 6
+endpoints = ["wss://proxy.example.com/connect"]
+token_endpoint = "https://proxy.example.com/retrieve-token"
+reconnect_interval = [60, 180]
+timeout = 30
+
+[security]
+# Path to credentials file (alternative to inline keys)
+# credentials_path = "/etc/apfsds/credentials.json"
+
+# Or specify keys directly (hex encoded)
+# client_sk = "your-32-byte-secret-key-in-hex"
+# server_pk = "server-public-key-in-hex"
+# hmac_secret = "hmac-secret-in-hex"
+
+[emergency]
+enabled = true
+crate_name = "apfsds"
+check_interval = 300  # 5 minutes
+
+[obfuscation]
+noise_ratio = 0.15
+fake_json_enabled = true
+sse_keepalive = true

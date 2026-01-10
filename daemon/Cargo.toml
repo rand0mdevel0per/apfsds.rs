@@ -1,0 +1,38 @@
+[package]
+name = "apfsds-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "apfsdsd"
+path = "src/main.rs"
+
+[dependencies]
+apfsds-protocol = { path = "../crates/protocol" }
+apfsds-crypto = { path = "../crates/crypto" }
+apfsds-transport = { path = "../crates/transport" }
+apfsds-obfuscation = { path = "../crates/obfuscation" }
+apfsds-storage = { path = "../crates/storage" }
+
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+http-body-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+bytes.workspace = true
+rkyv.workspace = true
+dashmap.workspace = true
+base64.workspace = true
+prometheus.workspace = true
+
+# CLI
+clap = { version = "4", features = ["derive"] }
