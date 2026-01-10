@@ -1,7 +1,6 @@
 //! B-link tree index (simplified version for Phase 1)
 
 use dashmap::DashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::SegmentPtr;
 

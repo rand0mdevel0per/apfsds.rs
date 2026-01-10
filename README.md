@@ -40,7 +40,7 @@ apfsds/
 
 ```bash
 # Clone the repository
-git clone https://github.com/user/apfsds
+git clone https://github.com/rand0mdevel0per/apfsds.rs.git
 cd apfsds
 
 # Build all crates

@@ -1,7 +1,6 @@
 //! Storage segment for MVCC
 
 use apfsds_protocol::ConnRecord;
-use bytes::Bytes;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Segment ID counter

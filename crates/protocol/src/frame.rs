@@ -160,6 +160,99 @@ pub enum EmergencyLevel {
     Shutdown,
 }
 
+/// Plain packet for exit node communication (no encryption needed - internal network)
+///
+/// This is used between Handler and Exit nodes over Cloudflare Tunnel or internal network.
+#[derive(Archive, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[rkyv(compare(PartialEq), derive(Debug))]
+pub struct PlainPacket {
+    /// Magic number for validation (0xDEADBEEF)
+    pub magic: u32,
+
+    /// Connection ID
+    pub conn_id: u64,
+
+    /// Handler node ID (for response routing)
+    pub handler_id: u64,
+
+    /// Remote IP address (16 bytes)
+    pub rip: [u8; 16],
+
+    /// Remote port
+    pub rport: u16,
+
+    /// Payload data
+    pub payload: Vec<u8>,
+
+    /// CRC32 checksum
+    pub checksum: u32,
+
+    /// Is this a response (from exit to handler)?
+    pub is_response: bool,
+}
+
+impl PlainPacket {
+    /// Magic number constant
+    pub const MAGIC: u32 = 0xDEADBEEF;
+
+    /// Create a new plain packet from a ProxyFrame
+    pub fn from_frame(frame: &ProxyFrame, handler_id: u64) -> Self {
+        Self {
+            magic: Self::MAGIC,
+            conn_id: frame.conn_id,
+            handler_id,
+            rip: frame.rip,
+            rport: frame.rport,
+            payload: frame.payload.clone(),
+            checksum: frame.checksum,
+            is_response: false,
+        }
+    }
+
+    /// Create a response packet
+    pub fn response(conn_id: u64, handler_id: u64, payload: Vec<u8>) -> Self {
+        let checksum = crc32fast::hash(&payload);
+        Self {
+            magic: Self::MAGIC,
+            conn_id,
+            handler_id,
+            rip: [0; 16],
+            rport: 0,
+            payload,
+            checksum,
+            is_response: true,
+        }
+    }
+
+    /// Verify magic number
+    pub fn is_valid(&self) -> bool {
+        self.magic == Self::MAGIC && crc32fast::hash(&self.payload) == self.checksum
+    }
+}
+
+/// Raft commands for distributed state machine
+#[derive(Archive, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[rkyv(compare(PartialEq), derive(Debug))]
+pub enum RaftCommand {
+    /// Insert or update a connection record
+    Upsert {
+        conn_id: u64,
+        txid: u64,
+        client_addr: [u8; 16],
+        nat_entry: (u16, u16),
+        assigned_pod: u32,
+    },
+
+    /// Delete a connection record
+    Delete { conn_id: u64 },
+
+    /// Cleanup expired connections (TTL based)
+    Cleanup { before_timestamp: u64 },
+
+    /// No-op for leader election
+    Noop,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,21 +1,17 @@
 [package]
-name = "apfsds-storage"
+name = "apfsds-raft"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 apfsds-protocol = { path = "../protocol" }
+apfsds-storage = { path = "../storage" }
 
 tokio.workspace = true
-rkyv.workspace = true
+serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-dashmap.workspace = true
-parking_lot.workspace = true
-bytes.workspace = true
-clickhouse.workspace = true
-serde.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

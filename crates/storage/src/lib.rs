@@ -5,14 +5,15 @@
 //! - B-link tree index (lock-free)
 //! - Compaction
 //! - tmpfs integration
+//! - ClickHouse backup (config-based)
 
 mod segment;
 mod blink_tree;
 mod engine;
+mod clickhouse_backup;
 
 pub use segment::*;
 pub use blink_tree::*;
 pub use engine::*;
+pub use clickhouse_backup::*;
 
-// TODO: Implement full storage engine
-// For Phase 1, we use a simple in-memory store
