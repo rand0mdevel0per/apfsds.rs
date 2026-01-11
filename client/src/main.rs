@@ -3,13 +3,17 @@
 //! A high-performance proxy client with TUN support.
 
 mod config;
+mod doh;
 mod emergency;
+mod local_dns;
 mod socks5;
-// mod tun_device; // TODO: Implement TUN support
+mod wss;
+mod tun_device;
+// mod local_dns;  // TODO: Local DNS server for DNS leak prevention
 
 use anyhow::Result;
 use clap::Parser;
-use tracing::{info, Level};
+use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 use config::ClientConfig;
@@ -69,6 +73,14 @@ async fn main() -> Result<()> {
         // TODO: Implement TUN mode
         anyhow::bail!("TUN mode not yet implemented");
     } else {
+        // Start Local DNS service in background
+        let config_dns = config.clone();
+        tokio::spawn(async move {
+            if let Err(e) = crate::local_dns::run(&config_dns).await {
+                tracing::error!("Local DNS service failed: {}", e);
+            }
+        });
+
         info!("Starting in SOCKS5 mode on {}", config.socks5.bind);
         socks5::run(&config).await?;
     }

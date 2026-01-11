@@ -7,12 +7,12 @@
 //! - HMAC-SHA256 with constant-time comparison
 //! - Replay cache for nonce deduplication
 
-mod keys;
 mod aes;
 mod hmac_auth;
+mod keys;
 mod replay;
 
-pub use keys::*;
 pub use aes::*;
 pub use hmac_auth::*;
+pub use keys::*;
 pub use replay::*;

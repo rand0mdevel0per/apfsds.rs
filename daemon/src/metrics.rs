@@ -1,9 +1,7 @@
 //! Prometheus metrics
 
 use crate::config::MonitoringConfig;
-use prometheus::{
-    Counter, Gauge, Histogram, HistogramOpts, IntCounter, IntGauge, Opts, Registry,
-};
+use prometheus::{Histogram, HistogramOpts, IntCounter, IntGauge, Opts, Registry};
 use std::sync::LazyLock;
 use tokio::task::JoinHandle;
 use tracing::{error, info};
@@ -118,10 +116,10 @@ pub fn start_server(config: &MonitoringConfig) -> JoinHandle<()> {
             return;
         }
 
-        use hyper::{server::conn::http1, service::service_fn, Response};
-        use hyper_util::rt::TokioIo;
-        use http_body_util::Full;
         use bytes::Bytes;
+        use http_body_util::Full;
+        use hyper::{Response, server::conn::http1, service::service_fn};
+        use hyper_util::rt::TokioIo;
 
         let listener = match tokio::net::TcpListener::bind(bind).await {
             Ok(l) => l,

@@ -284,12 +284,7 @@ mod tests {
 
     #[test]
     fn test_serialization() {
-        let frame = ProxyFrame::new_data(
-            1,
-            [0; 16],
-            443,
-            vec![0xDE, 0xAD, 0xBE, 0xEF],
-        );
+        let frame = ProxyFrame::new_data(1, [0; 16], 443, vec![0xDE, 0xAD, 0xBE, 0xEF]);
 
         let bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&frame).unwrap();
         let archived = rkyv::access::<ArchivedProxyFrame, rkyv::rancor::Error>(&bytes).unwrap();

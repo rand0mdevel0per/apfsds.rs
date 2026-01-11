@@ -7,13 +7,15 @@
 //! - tmpfs integration
 //! - ClickHouse backup (config-based)
 
-mod segment;
 mod blink_tree;
-mod engine;
 mod clickhouse_backup;
+mod engine;
+pub mod postgres;
+mod segment;
+pub mod wal;
 
-pub use segment::*;
 pub use blink_tree::*;
-pub use engine::*;
 pub use clickhouse_backup::*;
-
+pub use engine::*;
+pub use segment::*;
+pub use wal::Wal;

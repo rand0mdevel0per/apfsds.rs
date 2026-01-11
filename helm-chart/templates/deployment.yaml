@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-daemon
+  labels:
+    app: {{ .Release.Name }}
+    component: daemon
+spec:
+  serviceName: {{ .Release.Name }}-headless
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: daemon
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        component: daemon
+    spec:
+      containers:
+      - name: daemon
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 25347
+          name: handler
+        - containerPort: {{ .Values.monitoring.prometheus.port }}
+          name: metrics
+        env:
+        - name: APFSDS_MODE
+          value: {{ .Values.deployment.mode }}
+        - name: APFSDS_SERVER_SK
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-secrets
+              key: server-secret-key
+        - name: APFSDS_HMAC_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-secrets
+              key: hmac-secret
+        volumeMounts:
+        - name: tmpfs
+          mountPath: /dev/shm/apfsds
+        - name: data
+          mountPath: /var/lib/apfsds
+        - name: config
+          mountPath: /etc/apfsds
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 25347
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 25347
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      
+      volumes:
+      - name: tmpfs
+        emptyDir:
+          medium: Memory
+          sizeLimit: {{ .Values.storage.tmpfs.size }}
+      - name: config
+        configMap:
+          name: {{ .Release.Name }}-config
+  
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      {{- if .Values.storage.disk.storageClass }}
+      storageClassName: {{ .Values.storage.disk.storageClass }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.storage.disk.size }}

@@ -85,10 +85,7 @@ impl ConnectionRecord {
     pub fn from_conn_meta(conn_id: u64, meta: &ConnMeta, timestamp: u64) -> Self {
         let client_addr = format!(
             "{}.{}.{}.{}",
-            meta.client_addr[12],
-            meta.client_addr[13],
-            meta.client_addr[14],
-            meta.client_addr[15]
+            meta.client_addr[12], meta.client_addr[13], meta.client_addr[14], meta.client_addr[15]
         );
 
         Self {
@@ -107,6 +104,7 @@ pub struct ClickHouseBackup {
     client: Option<clickhouse::Client>,
     config: ClickHouseConfig,
     buffer: RwLock<Vec<ConnectionRecord>>,
+    raft_buffer: RwLock<Vec<RaftLogRecord>>,
 }
 
 impl ClickHouseBackup {
@@ -135,6 +133,7 @@ impl ClickHouseBackup {
             client,
             config,
             buffer: RwLock::new(Vec::new()),
+            raft_buffer: RwLock::new(Vec::new()),
         })
     }
 
@@ -255,7 +254,10 @@ impl ClickHouseBackup {
             .await
             .map_err(|e| ClickHouseError::QueryFailed(e.to_string()))?;
 
-        info!("ClickHouse table ensured: {}.{}", self.config.database, self.config.table);
+        info!(
+            "ClickHouse table ensured: {}.{}",
+            self.config.database, self.config.table
+        );
         Ok(())
     }
 
@@ -263,6 +265,129 @@ impl ClickHouseBackup {
     pub async fn buffered_count(&self) -> usize {
         self.buffer.read().await.len()
     }
+
+    /// Record a raft log entry
+    pub async fn archive_raft_log(
+        &self,
+        index: u64,
+        term: u64,
+        operation: &str,
+        payload: &str,
+    ) -> Result<(), ClickHouseError> {
+        if !self.is_enabled() {
+            return Ok(());
+        }
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let record = RaftLogRecord {
+            index,
+            term,
+            operation: operation.to_string(),
+            payload: payload.to_string(),
+            created_at: timestamp,
+        };
+
+        let mut buffer = self.raft_buffer.write().await;
+        buffer.push(record);
+
+        if buffer.len() >= self.config.batch_size {
+            drop(buffer);
+            self.flush_raft_logs().await?;
+        }
+
+        Ok(())
+    }
+
+    /// Flush buffered raft logs
+    pub async fn flush_raft_logs(&self) -> Result<usize, ClickHouseError> {
+        let client = match &self.client {
+            Some(c) => c,
+            None => return Ok(0),
+        };
+
+        let mut buffer = self.raft_buffer.write().await;
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+
+        let records: Vec<_> = buffer.drain(..).collect();
+        let count = records.len();
+        drop(buffer);
+
+        let table_name = format!("{}_logs", self.config.table);
+
+        let mut insert = client
+            .insert(&table_name)
+            .map_err(|e| ClickHouseError::QueryFailed(e.to_string()))?;
+
+        for record in records {
+            insert
+                .write(&record)
+                .await
+                .map_err(|e| ClickHouseError::QueryFailed(e.to_string()))?;
+        }
+
+        insert
+            .end()
+            .await
+            .map_err(|e| ClickHouseError::QueryFailed(e.to_string()))?;
+
+        Ok(count)
+    }
+
+    /// Create tables if not exists
+    pub async fn ensure_tables(&self) -> Result<(), ClickHouseError> {
+        let client = match &self.client {
+            Some(c) => c,
+            None => return Ok(()),
+        };
+
+        // Ensure connections table
+        self.ensure_table().await?;
+
+        // Ensure raft logs table
+        let table_name = format!("{}_logs", self.config.table);
+        let ddl = format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {}.{} (
+                index UInt64,
+                term UInt64,
+                operation String,
+                payload String,
+                created_at DateTime64(3)
+            ) ENGINE = MergeTree()
+            ORDER BY (created_at, index)
+            TTL toDateTime(created_at) + INTERVAL 30 DAY
+            "#,
+            self.config.database, table_name
+        );
+
+        client
+            .query(&ddl)
+            .execute()
+            .await
+            .map_err(|e| ClickHouseError::QueryFailed(e.to_string()))?;
+
+        info!(
+            "ClickHouse table ensured: {}.{}",
+            self.config.database, table_name
+        );
+        Ok(())
+    }
+}
+
+/// Raft log record for ClickHouse storage
+#[derive(Debug, Clone, Serialize, clickhouse::Row)]
+pub struct RaftLogRecord {
+    pub index: u64,
+    pub term: u64,
+    pub operation: String,
+    pub payload: String,
+    pub created_at: u64,
 }
 
 #[cfg(test)]

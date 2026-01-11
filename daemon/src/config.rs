@@ -12,6 +12,10 @@ pub struct DaemonConfig {
     #[serde(default)]
     pub server: ServerConfig,
 
+    /// Raft configuration
+    #[serde(default)]
+    pub raft: RaftConfig,
+
     /// Exit nodes configuration
     #[serde(default)]
     pub exit_nodes: Vec<ExitNodeConfig>,
@@ -23,6 +27,10 @@ pub struct DaemonConfig {
     /// Security configuration
     #[serde(default)]
     pub security: SecurityConfig,
+
+    /// Database configuration
+    #[serde(default)]
+    pub database: DatabaseConfig,
 
     /// Monitoring configuration
     #[serde(default)]
@@ -36,15 +44,100 @@ impl DaemonConfig {
         let config: DaemonConfig = toml::from_str(&content)?;
         Ok(config)
     }
+
+    /// Load and merge configuration from file (incremental update)
+    /// 
+    /// Only non-default values from the new config will overwrite existing values.
+    /// Lists (like exit_nodes) will be merged by name/endpoint.
+    pub async fn load_merge(&mut self, path: impl AsRef<Path>) -> Result<()> {
+        let content = tokio::fs::read_to_string(path).await?;
+        let other: DaemonConfig = toml::from_str(&content)?;
+        self.merge(other);
+        Ok(())
+    }
+
+    /// Merge another config into this one (incremental)
+    /// 
+    /// Rules:
+    /// - Scalar values: overwrite if the new value differs from default
+    /// - Option values: overwrite if Some
+    /// - Vec values: merge by key (name/endpoint)
+    pub fn merge(&mut self, other: DaemonConfig) {
+        // Server config
+        if other.server.mode != default_mode() {
+            self.server.mode = other.server.mode;
+        }
+        if other.server.bind != default_bind() {
+            self.server.bind = other.server.bind;
+        }
+        if other.server.location.is_some() {
+            self.server.location = other.server.location;
+        }
+        if other.server.max_connections != default_max_connections() {
+            self.server.max_connections = other.server.max_connections;
+        }
+
+        // Raft config
+        if other.raft.node_id != 1 {
+            self.raft.node_id = other.raft.node_id;
+        }
+        if !other.raft.peers.is_empty() {
+            // Merge peers by value (simple strings)
+            for peer in other.raft.peers {
+                if !self.raft.peers.contains(&peer) {
+                    self.raft.peers.push(peer);
+                }
+            }
+        }
+
+        // Exit nodes: merge by name
+        for node in other.exit_nodes {
+            if let Some(existing) = self.exit_nodes.iter_mut().find(|n| n.name == node.name) {
+                // Update existing node
+                existing.endpoint = node.endpoint;
+                existing.weight = node.weight;
+                existing.group_id = node.group_id;
+            } else {
+                // Add new node
+                self.exit_nodes.push(node);
+            }
+        }
+
+        // Security config - only if provided
+        if other.security.server_sk.is_some() {
+            self.security.server_sk = other.security.server_sk;
+        }
+        if other.security.hmac_secret.is_some() {
+            self.security.hmac_secret = other.security.hmac_secret;
+        }
+        if other.security.token_ttl != default_token_ttl() {
+            self.security.token_ttl = other.security.token_ttl;
+        }
+        if other.security.key_rotation_interval != default_rotation_interval() {
+            self.security.key_rotation_interval = other.security.key_rotation_interval;
+        }
+
+        // Database config
+        if other.database.url != default_postgres_url() {
+            self.database.url = other.database.url;
+        }
+
+        // Monitoring
+        if other.monitoring.prometheus_bind != default_prometheus_bind() {
+            self.monitoring.prometheus_bind = other.monitoring.prometheus_bind;
+        }
+    }
 }
 
 impl Default for DaemonConfig {
     fn default() -> Self {
         Self {
             server: ServerConfig::default(),
+            raft: RaftConfig::default(),
             exit_nodes: Vec::new(),
             storage: StorageConfig::default(),
             security: SecurityConfig::default(),
+            database: DatabaseConfig::default(),
             monitoring: MonitoringConfig::default(),
         }
     }
@@ -93,6 +186,49 @@ impl Default for ServerConfig {
     }
 }
 
+/// Raft configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct RaftConfig {
+    /// Node ID
+    #[serde(default = "default_node_id")]
+    pub node_id: u64,
+
+    /// Peer addresses (node_id -> address)
+    #[serde(default)]
+    pub peers: Vec<String>,
+
+    /// Election timeout (min, max) in ms
+    #[serde(default = "default_election_timeout")]
+    pub election_timeout: (u64, u64),
+
+    /// Heartbeat interval in ms
+    #[serde(default = "default_heartbeat_interval")]
+    pub heartbeat_interval: u64,
+}
+
+fn default_node_id() -> u64 {
+    1
+}
+
+fn default_election_timeout() -> (u64, u64) {
+    (150, 300)
+}
+
+fn default_heartbeat_interval() -> u64 {
+    50
+}
+
+impl Default for RaftConfig {
+    fn default() -> Self {
+        Self {
+            node_id: default_node_id(),
+            peers: Vec::new(),
+            election_timeout: default_election_timeout(),
+            heartbeat_interval: default_heartbeat_interval(),
+        }
+    }
+}
+
 /// Exit node configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExitNodeConfig {
@@ -109,6 +245,10 @@ pub struct ExitNodeConfig {
     /// Location description
     #[serde(default)]
     pub location: Option<String>,
+
+    /// Group ID for routing (default: 0)
+    #[serde(default)]
+    pub group_id: i32,
 }
 
 fn default_weight() -> f64 {
@@ -137,6 +277,56 @@ pub struct StorageConfig {
     /// Compaction threshold
     #[serde(default = "default_compaction_threshold")]
     pub compaction_threshold: usize,
+
+    /// ClickHouse backup configuration (for Phase 2)
+    #[serde(default)]
+    pub clickhouse: ClickHouseConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ClickHouseConfig {
+    #[serde(default)]
+    pub enabled: bool,
+
+    #[serde(default = "default_clickhouse_url")]
+    pub url: String,
+
+    #[serde(default = "default_clickhouse_db")]
+    pub database: String,
+
+    #[serde(default = "default_clickhouse_table")]
+    pub table: String,
+
+    #[serde(default)]
+    pub username: Option<String>,
+
+    #[serde(default)]
+    pub password: Option<String>,
+}
+
+fn default_clickhouse_url() -> String {
+    "http://localhost:8123".to_string()
+}
+
+fn default_clickhouse_db() -> String {
+    "apfsds".to_string()
+}
+
+fn default_clickhouse_table() -> String {
+    "connections".to_string()
+}
+
+impl Default for ClickHouseConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            url: default_clickhouse_url(),
+            database: default_clickhouse_db(),
+            table: default_clickhouse_table(),
+            username: None,
+            password: None,
+        }
+    }
 }
 
 fn default_tmpfs_path() -> String {
@@ -167,6 +357,7 @@ impl Default for StorageConfig {
             disk_path: default_disk_path(),
             segment_size_limit: default_segment_size(),
             compaction_threshold: default_compaction_threshold(),
+            clickhouse: ClickHouseConfig::default(),
         }
     }
 }
@@ -215,6 +406,26 @@ impl Default for SecurityConfig {
             token_ttl: default_token_ttl(),
             key_rotation_interval: default_rotation_interval(),
             grace_period: default_grace_period(),
+        }
+    }
+}
+
+/// Database configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct DatabaseConfig {
+    /// PostgreSQL connection URL
+    #[serde(default = "default_postgres_url")]
+    pub url: String,
+}
+
+fn default_postgres_url() -> String {
+    "postgres://postgres:postgres@localhost:5432/apfsds".to_string()
+}
+
+impl Default for DatabaseConfig {
+    fn default() -> Self {
+        Self {
+            url: default_postgres_url(),
         }
     }
 }

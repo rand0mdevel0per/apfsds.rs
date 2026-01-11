@@ -1,14 +1,12 @@
-//! Type definitions for Raft commands and responses
-
+use async_raft::{AppData, AppDataResponse};
 use serde::{Deserialize, Serialize};
 
-/// Request type for Raft log entries
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Request {
+/// Application data request (log entry payload)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ClientRequest {
     /// Insert or update connection
     Upsert {
         conn_id: u64,
-        txid: u64,
         client_addr: [u8; 16],
         nat_entry: (u16, u16),
         assigned_pod: u32,
@@ -20,16 +18,20 @@ pub enum Request {
     /// Cleanup expired connections
     Cleanup { before_timestamp: u64 },
 
-    /// No-op (for leader election)
+    /// No-op
     Noop,
 }
 
-/// Response type for applied entries
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Response {
+impl AppData for ClientRequest {}
+
+/// Application data response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ClientResponse {
     /// Success with affected count
     Ok { affected: u64 },
-    
+
     /// Error with message
     Error { message: String },
 }
+
+impl AppDataResponse for ClientResponse {}

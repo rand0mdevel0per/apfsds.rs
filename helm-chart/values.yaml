@@ -1,0 +1,114 @@
+# APFSDS Helm Values
+replicaCount: 3
+
+image:
+  repository: ghcr.io/yourrepo/apfsds
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+deployment:
+  mode: split  # split | all-in-one
+
+server:
+  domain: proxy.example.com
+  bind: "0.0.0.0:25347"
+  
+  handler:
+    location: nanjing
+    
+  exitNodes:
+    - name: tokyo
+      endpoint: "10.0.1.100:25347"
+      weight: 1.0
+      location: "Tokyo, Japan"
+    - name: singapore
+      endpoint: "10.0.1.101:25347"
+      weight: 0.5
+      location: "Singapore"
+
+# Database Configuration
+postgresql:
+  enabled: true
+  auth:
+    username: apfsds
+    database: apfsds
+    # password: set via --set postgresql.auth.password=XXX
+
+clickhouse:
+  enabled: true
+  auth:
+    username: apfsds
+    database: apfsds
+    # password: set via --set clickhouse.auth.password=XXX
+
+storage:
+  tmpfs:
+    enabled: true
+    size: 512Mi
+  
+  disk:
+    enabled: true
+    size: 10Gi
+    storageClass: fast-ssd
+  
+  # Connect to subcharts
+  # Hostnames follow format: <release>-<chart>.<namespace>.svc.cluster.local
+  database:
+    host: "{{ .Release.Name }}-postgresql"
+    port: 5432
+    username: apfsds
+    database: apfsds
+  
+  clickhouse_connect:
+    host: "{{ .Release.Name }}-clickhouse"
+    port: 8123
+    database: apfsds
+    retention: 7d
+
+security:
+  # Generated during install
+  serverSecretKey: ""
+  hmacSecret: ""
+  
+  tokenTTL: 3600
+  keyRotationInterval: 604800  # 7 days
+  gracePeriod: 600  # 10 minutes
+  
+  emergency:
+    autoTriggerOnDNS: true
+    dnsCheckDomain: "_emergency.example.com"
+    checkInterval: 300
+    triggerDelayRange: [0, 3600]
+
+nginx:
+  enabled: true
+  cache:
+    enabled: true
+    size: 1Gi
+    ttl: 3600
+
+cloudflare:
+  tunnel:
+    enabled: false
+    token: ""
+
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+    path: /metrics
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80

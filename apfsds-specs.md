@@ -2294,8 +2294,9 @@ file = "/var/log/apfsds/server.log"
 ### Phase 5: Advanced Features (optional)
 
 - [ ] SSH fallback transport
-- [ ] QUIC transport
-- [ ] Plugin system (Unix socket)
+- [ ] QUIC/HTTP3 transport (Handler <-> Exit intra-node communication)
+- [ ] Windows TUN/TAP support (wintun driver integration)
+- [ ] Plugin system (Unix socket / Named pipes on Windows)
 - [ ] Web UI dashboard
 - [ ] Mobile client (iOS/Android)
 

@@ -1,9 +1,9 @@
 //! WebSocket server for handling client connections
 
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
 use thiserror::Error;
-use tracing::{debug, info, warn};
+use tokio::net::TcpListener;
+use tracing::info;
 
 #[derive(Error, Debug)]
 pub enum WssServerError {

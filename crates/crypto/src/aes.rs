@@ -1,8 +1,8 @@
 //! AES-256-GCM encryption
 
 use aes_gcm::{
-    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit},
 };
 use rand::RngCore;
 use thiserror::Error;
@@ -41,7 +41,7 @@ impl Aes256GcmCipher {
     /// Returns: nonce (12 bytes) || ciphertext
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>, AesError> {
         use rand::RngCore;
-        
+
         let mut nonce_bytes = [0u8; 12];
         rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
@@ -59,7 +59,11 @@ impl Aes256GcmCipher {
     }
 
     /// Encrypt with a specific nonce
-    pub fn encrypt_with_nonce(&self, nonce: &[u8; 12], plaintext: &[u8]) -> Result<Vec<u8>, AesError> {
+    pub fn encrypt_with_nonce(
+        &self,
+        nonce: &[u8; 12],
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, AesError> {
         let nonce = Nonce::from_slice(nonce);
         self.cipher
             .encrypt(nonce, plaintext)
@@ -81,7 +85,11 @@ impl Aes256GcmCipher {
     }
 
     /// Decrypt with a specific nonce
-    pub fn decrypt_with_nonce(&self, nonce: &[u8; 12], ciphertext: &[u8]) -> Result<Vec<u8>, AesError> {
+    pub fn decrypt_with_nonce(
+        &self,
+        nonce: &[u8; 12],
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, AesError> {
         let nonce = Nonce::from_slice(nonce);
         self.cipher
             .decrypt(nonce, ciphertext)

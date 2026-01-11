@@ -1,11 +1,8 @@
 //! Connection pool for WebSocket connections
 
-use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 use crate::{WssClient, WssClientConfig, WssClientError};
@@ -145,7 +142,11 @@ impl ConnectionPool {
     /// Execute an operation on a connection
     pub async fn with_connection<F, T>(&self, f: F) -> Result<T, PoolError>
     where
-        F: FnOnce(&mut WssClient) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T, WssClientError>> + Send + '_>>,
+        F: FnOnce(
+            &mut WssClient,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<T, WssClientError>> + Send + '_>,
+        >,
     {
         if self.closed.load(Ordering::Relaxed) {
             return Err(PoolError::PoolClosed);

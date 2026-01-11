@@ -6,12 +6,12 @@
 //! - Compression utilities
 //! - Timing jitter
 
-mod xor_mask;
-mod padding;
 mod compression;
+mod padding;
 mod timing;
+mod xor_mask;
 
-pub use xor_mask::*;
-pub use padding::*;
 pub use compression::*;
+pub use padding::*;
 pub use timing::*;
+pub use xor_mask::*;

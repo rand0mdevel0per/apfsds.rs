@@ -76,7 +76,8 @@ impl Segment {
 
         let bytes = &self.data[offset..end];
 
-        let archived = rkyv::access::<apfsds_protocol::ArchivedConnRecord, rkyv::rancor::Error>(bytes).ok()?;
+        let archived =
+            rkyv::access::<apfsds_protocol::ArchivedConnRecord, rkyv::rancor::Error>(bytes).ok()?;
         rkyv::deserialize::<ConnRecord, rkyv::rancor::Error>(archived).ok()
     }
 

@@ -4,15 +4,15 @@ use futures::{SinkExt, StreamExt};
 use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
-    connect_async_with_config,
+    MaybeTlsStream, WebSocketStream, connect_async_with_config,
     tungstenite::{
+        Message,
         client::IntoClientRequest,
-        http::{header, Request},
-        Message, protocol::WebSocketConfig,
+        http::{Request, header},
+        protocol::WebSocketConfig,
     },
-    MaybeTlsStream, WebSocketStream,
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, trace};
 
 /// Chrome 120 User-Agent
 pub const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
@@ -82,7 +82,7 @@ impl WssClient {
 
         let mut ws_config = WebSocketConfig::default();
         ws_config.max_message_size = Some(64 << 20); // 64MB
-        ws_config.max_frame_size = Some(16 << 20);   // 16MB
+        ws_config.max_frame_size = Some(16 << 20); // 16MB
 
         debug!("Connecting to {}", config.url);
 
@@ -106,28 +106,23 @@ impl WssClient {
             .into_client_request()
             .map_err(|e| WssClientError::InvalidUrl(e.to_string()))?;
 
-        let host = request
-            .uri()
-            .host()
-            .unwrap_or("localhost")
-            .to_string();
+        let host = request.uri().host().unwrap_or("localhost").to_string();
 
         let headers = request.headers_mut();
 
         // Chrome-like headers (order matters for fingerprinting!)
         headers.insert(header::HOST, host.parse().unwrap());
         headers.insert(header::USER_AGENT, CHROME_UA.parse().unwrap());
-        headers.insert(
-            header::ACCEPT_LANGUAGE,
-            "en-US,en;q=0.9".parse().unwrap(),
-        );
+        headers.insert(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9".parse().unwrap());
         headers.insert(
             header::ACCEPT_ENCODING,
             "gzip, deflate, br".parse().unwrap(),
         );
         headers.insert(
             "Sec-WebSocket-Extensions",
-            "permessage-deflate; client_max_window_bits".parse().unwrap(),
+            "permessage-deflate; client_max_window_bits"
+                .parse()
+                .unwrap(),
         );
 
         // Add authorization if token is provided
@@ -142,7 +137,7 @@ impl WssClient {
         for (key, value) in &config.headers {
             if let (Ok(name), Ok(val)) = (
                 key.parse::<hyper::header::HeaderName>(),
-                value.parse::<hyper::header::HeaderValue>()
+                value.parse::<hyper::header::HeaderValue>(),
             ) {
                 headers.insert(name, val);
             }
@@ -236,9 +231,7 @@ impl WssClient {
     }
 
     /// Get mutable reference to the underlying stream
-    pub fn stream_mut(
-        &mut self,
-    ) -> &mut WebSocketStream<MaybeTlsStream<TcpStream>> {
+    pub fn stream_mut(&mut self) -> &mut WebSocketStream<MaybeTlsStream<TcpStream>> {
         &mut self.stream
     }
 

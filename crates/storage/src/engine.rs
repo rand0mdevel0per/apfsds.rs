@@ -2,8 +2,8 @@
 
 use apfsds_protocol::{ConnMeta, ConnRecord};
 use parking_lot::RwLock;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 
 use crate::{BLinkTree, Segment, SegmentPtr};
@@ -117,9 +117,7 @@ impl StorageEngine {
 
                 // Retry
                 let mut segment = self.active_segment.write();
-                let offset = segment
-                    .append(&record)
-                    .ok_or(StorageError::SegmentFull)?;
+                let offset = segment.append(&record).ok_or(StorageError::SegmentFull)?;
 
                 let ptr = SegmentPtr {
                     segment_id: segment.id,

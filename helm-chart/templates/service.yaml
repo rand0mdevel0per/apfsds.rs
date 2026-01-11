@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-handler
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 25347
+    targetPort: handler
+    name: handler
+  - port: {{ .Values.monitoring.prometheus.port }}
+    targetPort: metrics
+    name: metrics
+  selector:
+    app: {{ .Release.Name }}
+    component: daemon
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-headless
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  clusterIP: None
+  ports:
+  - port: 25347
+    name: handler
+  selector:
+    app: {{ .Release.Name }}
+    component: daemon

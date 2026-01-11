@@ -1,8 +1,6 @@
 //! Frame codec for encoding/decoding ProxyFrames over WebSocket
 
-use apfsds_obfuscation::{
-    compress, compress_if_needed, decompress, is_compressed, PaddingStrategy, XorMask,
-};
+use apfsds_obfuscation::{PaddingStrategy, XorMask, compress_if_needed, decompress};
 use apfsds_protocol::ProxyFrame;
 use thiserror::Error;
 use tracing::trace;
@@ -62,8 +60,7 @@ impl FrameCodec {
 
         // 2. Compress if needed
         let (data, compressed) = if self.compression_enabled {
-            compress_if_needed(&bytes)
-                .map_err(|e| CodecError::CompressionFailed(e.to_string()))?
+            compress_if_needed(&bytes).map_err(|e| CodecError::CompressionFailed(e.to_string()))?
         } else {
             (bytes, false)
         };
@@ -100,26 +97,29 @@ impl FrameCodec {
         let compressed = (flags & 0x01) != 0;
         let remaining = &data[1..];
 
-        trace!("Decoding frame: {} bytes, compressed: {}", data.len(), compressed);
+        trace!(
+            "Decoding frame: {} bytes, compressed: {}",
+            data.len(),
+            compressed
+        );
 
         // 2. Remove padding
-        let unpadded = PaddingStrategy::unpad(remaining)
-            .ok_or(CodecError::InvalidFrameFormat)?;
+        let unpadded = PaddingStrategy::unpad(remaining).ok_or(CodecError::InvalidFrameFormat)?;
 
         // 3. XOR unmask
         let unmasked = self.xor_mask.apply(&unpadded);
 
         // 4. Decompress if needed
         let bytes = if compressed {
-            decompress(&unmasked)
-                .map_err(|e| CodecError::DecompressionFailed(e.to_string()))?
+            decompress(&unmasked).map_err(|e| CodecError::DecompressionFailed(e.to_string()))?
         } else {
             unmasked
         };
 
         // 5. Deserialize with rkyv
-        let archived = rkyv::access::<apfsds_protocol::ArchivedProxyFrame, rkyv::rancor::Error>(&bytes)
-            .map_err(|e| CodecError::DeserializationFailed(e.to_string()))?;
+        let archived =
+            rkyv::access::<apfsds_protocol::ArchivedProxyFrame, rkyv::rancor::Error>(&bytes)
+                .map_err(|e| CodecError::DeserializationFailed(e.to_string()))?;
 
         let frame: ProxyFrame = rkyv::deserialize::<ProxyFrame, rkyv::rancor::Error>(archived)
             .map_err(|e| CodecError::DeserializationFailed(e.to_string()))?;
@@ -128,9 +128,14 @@ impl FrameCodec {
     }
 
     /// Encode frame as binary WebSocket message
-    pub fn encode_to_message(&self, frame: &ProxyFrame) -> Result<tokio_tungstenite::tungstenite::Message, CodecError> {
+    pub fn encode_to_message(
+        &self,
+        frame: &ProxyFrame,
+    ) -> Result<tokio_tungstenite::tungstenite::Message, CodecError> {
         let bytes = self.encode(frame)?;
-        Ok(tokio_tungstenite::tungstenite::Message::Binary(bytes.into()))
+        Ok(tokio_tungstenite::tungstenite::Message::Binary(
+            bytes.into(),
+        ))
     }
 }
 

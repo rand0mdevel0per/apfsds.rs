@@ -28,16 +28,16 @@ impl HmacAuthenticator {
 
     /// Compute HMAC for the given data
     pub fn compute(&self, data: &[u8]) -> [u8; 32] {
-        let mut mac = HmacSha256::new_from_slice(&self.secret)
-            .expect("HMAC can take key of any size");
+        let mut mac =
+            HmacSha256::new_from_slice(&self.secret).expect("HMAC can take key of any size");
         mac.update(data);
         mac.finalize().into_bytes().into()
     }
 
     /// Compute HMAC with timestamp
     pub fn compute_with_timestamp(&self, data: &[u8], timestamp: u64) -> [u8; 32] {
-        let mut mac = HmacSha256::new_from_slice(&self.secret)
-            .expect("HMAC can take key of any size");
+        let mut mac =
+            HmacSha256::new_from_slice(&self.secret).expect("HMAC can take key of any size");
         mac.update(data);
         mac.update(&timestamp.to_le_bytes());
         mac.finalize().into_bytes().into()
@@ -118,7 +118,10 @@ mod tests {
         assert!(auth.verify_with_timestamp(data, timestamp, &mac).is_ok());
 
         // Wrong timestamp should fail
-        assert!(auth.verify_with_timestamp(data, timestamp + 1, &mac).is_err());
+        assert!(
+            auth.verify_with_timestamp(data, timestamp + 1, &mac)
+                .is_err()
+        );
     }
 
     #[test]

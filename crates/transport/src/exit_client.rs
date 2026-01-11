@@ -1,14 +1,17 @@
 //! Exit node client for Handler → Exit communication
-//! 
+//!
 //! Uses HTTP/2 + rkyv serialization for high performance.
 
+use crate::SharedPacketDispatcher;
 use apfsds_protocol::PlainPacket;
+use bytes::{Buf, Bytes, BytesMut};
+use futures::StreamExt;
 use reqwest::Client;
 use rkyv::rancor::Error as RkyvError;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace, warn};
 
 /// Exit client errors
 #[derive(Error, Debug)]
@@ -116,6 +119,89 @@ impl ExitClient {
 
         debug!("Packet forwarded successfully");
         Ok(())
+    }
+
+    /// Subscribe to return traffic stream
+    pub fn subscribe(self: Arc<Self>, handler_id: u64, dispatcher: SharedPacketDispatcher) {
+        tokio::spawn(async move {
+            let url = format!("{}/stream?handler_id={}", self.config.base_url, handler_id);
+            let mut backoff = Duration::from_secs(1);
+
+            loop {
+                info!("Connecting to exit node stream at {}", url);
+                match self.client.get(&url).send().await {
+                    Ok(mut resp) => {
+                        if !resp.status().is_success() {
+                            warn!("Stream failed HTTP {}", resp.status());
+                            tokio::time::sleep(backoff).await;
+                            continue;
+                        }
+
+                        self.healthy
+                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                        backoff = Duration::from_secs(1);
+
+                        // let mut stream = resp.bytes_stream();
+                        let mut buffer = BytesMut::new();
+
+                        loop {
+                            match resp.chunk().await {
+                                Ok(Some(chunk)) => {
+                                    buffer.extend_from_slice(&chunk);
+
+                                    // Process frames (Length + Payload)
+                                    loop {
+                                        if buffer.len() < 4 {
+                                            break;
+                                        }
+
+                                        let mut len_bytes = [0u8; 4];
+                                        len_bytes.copy_from_slice(&buffer[..4]);
+                                        let len = u32::from_le_bytes(len_bytes) as usize;
+
+                                        if buffer.len() < 4 + len {
+                                            break; // Wait for more data
+                                        }
+
+                                        // Consume header
+                                        buffer.advance(4);
+                                        // Extract payload
+                                        let payload = buffer.split_to(len);
+
+                                        // Deserialize PlainPacket
+                                        match rkyv::from_bytes::<PlainPacket, rkyv::rancor::Error>(
+                                            &payload,
+                                        ) {
+                                            Ok(packet) => {
+                                                dispatcher.dispatch(packet).await;
+                                            }
+                                            Err(e) => {
+                                                error!("Stream deserialization error: {}", e);
+                                            }
+                                        }
+                                    }
+                                }
+                                Ok(None) => {
+                                    break; // EOF
+                                }
+                                Err(e) => {
+                                    error!("Stream read error: {}", e);
+                                    break;
+                                }
+                            }
+                        }
+                        warn!("Stream disconnected");
+                    }
+                    Err(e) => {
+                        error!("Failed to connect stream: {}", e);
+                        self.mark_unhealthy();
+                    }
+                }
+
+                tokio::time::sleep(backoff).await;
+                backoff = std::cmp::min(backoff * 2, Duration::from_secs(30));
+            }
+        });
     }
 
     /// Check health of exit node

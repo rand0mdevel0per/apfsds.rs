@@ -51,9 +51,16 @@ impl Ed25519KeyPair {
     }
 
     /// Verify a signature (requires only the public key)
-    pub fn verify_with_pk(pk: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Result<(), KeyError> {
-        let verifying_key = VerifyingKey::from_bytes(pk)
-            .map_err(|_| KeyError::InvalidKeyLength { expected: 32, actual: pk.len() })?;
+    pub fn verify_with_pk(
+        pk: &[u8; 32],
+        message: &[u8],
+        signature: &[u8; 64],
+    ) -> Result<(), KeyError> {
+        let verifying_key =
+            VerifyingKey::from_bytes(pk).map_err(|_| KeyError::InvalidKeyLength {
+                expected: 32,
+                actual: pk.len(),
+            })?;
 
         let sig = Signature::from_bytes(signature);
 

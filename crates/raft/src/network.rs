@@ -1,139 +1,86 @@
-//! Raft network implementation
-
-use crate::{NodeId, TypeConfig};
-use openraft::error::{InstallSnapshotError, RPCError, RaftError, Unreachable};
-use openraft::network::{RaftNetwork, RaftNetworkFactory};
-use openraft::raft::{
+use crate::{ClientRequest, ClientResponse, NodeId};
+use anyhow::{Result, anyhow};
+use async_raft::RaftNetwork;
+use async_raft::raft::{
     AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
     VoteRequest, VoteResponse,
 };
-use openraft::BasicNode;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use tracing::{debug, trace};
+use async_trait::async_trait;
+use reqwest::Client;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
-/// Network errors
-#[derive(Error, Debug)]
-pub enum NetworkError {
-    #[error("Connection failed: {0}")]
-    ConnectionFailed(String),
-
-    #[error("Request failed: {0}")]
-    RequestFailed(String),
+/// Network implementation for async-raft
+pub struct Network {
+    client: Client,
+    peers: Arc<RwLock<HashMap<NodeId, String>>>,
 }
 
-/// HTTP-based Raft network
-pub struct RaftHttpNetwork {
-    target: BasicNode,
-    client: reqwest::Client,
-}
-
-impl RaftHttpNetwork {
-    pub fn new(target: BasicNode) -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-            .expect("Failed to create HTTP client");
-
-        Self { target, client }
+impl Network {
+    pub fn new(peers: Arc<RwLock<HashMap<NodeId, String>>>) -> Self {
+        Self {
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()
+                .unwrap(),
+            peers,
+        }
     }
 
-    async fn send_rpc<Req, Resp>(&self, path: &str, req: &Req) -> Result<Resp, NetworkError>
+    async fn get_peer_url(&self, target: NodeId) -> Result<String> {
+        self.peers
+            .read()
+            .await
+            .get(&target)
+            .cloned()
+            .ok_or_else(|| anyhow!("Peer {} not found", target))
+    }
+
+    async fn post<Req, Resp>(&self, target: NodeId, path: &str, req: Req) -> Result<Resp>
     where
-        Req: Serialize,
-        Resp: for<'de> Deserialize<'de>,
+        Req: serde::Serialize,
+        Resp: serde::de::DeserializeOwned,
     {
-        let url = format!("http://{}{}", self.target.addr, path);
-        
+        let url = format!("http://{}{}", self.get_peer_url(target).await?, path);
+
         let resp = self
             .client
             .post(&url)
-            .json(req)
+            .json(&req)
             .send()
             .await
-            .map_err(|e| NetworkError::ConnectionFailed(e.to_string()))?;
+            .map_err(|e| anyhow!("Network error: {}", e))?;
 
         if !resp.status().is_success() {
-            return Err(NetworkError::RequestFailed(format!("HTTP {}", resp.status())));
+            return Err(anyhow!("Remote error: {}", resp.status()));
         }
 
         resp.json()
             .await
-            .map_err(|e| NetworkError::RequestFailed(e.to_string()))
+            .map_err(|e| anyhow!("Serialization error: {}", e))
     }
 }
 
-/// Network factory
-pub struct NetworkFactory;
-
-impl NetworkFactory {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for NetworkFactory {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl RaftNetworkFactory<TypeConfig> for NetworkFactory {
-    type Network = RaftHttpNetwork;
-
-    async fn new_client(&mut self, _target: NodeId, node: &BasicNode) -> Self::Network {
-        debug!("Creating network client for node: {:?}", node);
-        RaftHttpNetwork::new(node.clone())
-    }
-}
-
-impl RaftNetwork<TypeConfig> for RaftHttpNetwork {
+#[async_trait]
+impl RaftNetwork<ClientRequest> for Network {
     async fn append_entries(
-        &mut self,
-        rpc: AppendEntriesRequest<TypeConfig>,
-        _option: openraft::network::RPCOption,
-    ) -> Result<AppendEntriesResponse<TypeConfig>, RPCError<NodeId, BasicNode, RaftError<NodeId>>> {
-        trace!("Sending append_entries to {:?}", self.target);
-
-        self.send_rpc("/raft/append", &rpc)
-            .await
-            .map_err(|e| RPCError::Unreachable(Unreachable::new(&e)))
+        &self,
+        target: NodeId,
+        rpc: AppendEntriesRequest<ClientRequest>,
+    ) -> Result<AppendEntriesResponse> {
+        self.post(target, "/raft/append", rpc).await
     }
 
     async fn install_snapshot(
-        &mut self,
-        rpc: InstallSnapshotRequest<TypeConfig>,
-        _option: openraft::network::RPCOption,
-    ) -> Result<
-        InstallSnapshotResponse<TypeConfig>,
-        RPCError<NodeId, BasicNode, RaftError<NodeId, InstallSnapshotError>>,
-    > {
-        trace!("Sending install_snapshot to {:?}", self.target);
-
-        self.send_rpc("/raft/snapshot", &rpc)
-            .await
-            .map_err(|e| RPCError::Unreachable(Unreachable::new(&e)))
+        &self,
+        target: NodeId,
+        rpc: InstallSnapshotRequest,
+    ) -> Result<InstallSnapshotResponse> {
+        self.post(target, "/raft/snapshot", rpc).await
     }
 
-    async fn vote(
-        &mut self,
-        rpc: VoteRequest<TypeConfig>,
-        _option: openraft::network::RPCOption,
-    ) -> Result<VoteResponse<TypeConfig>, RPCError<NodeId, BasicNode, RaftError<NodeId>>> {
-        trace!("Sending vote request to {:?}", self.target);
-
-        self.send_rpc("/raft/vote", &rpc)
-            .await
-            .map_err(|e| RPCError::Unreachable(Unreachable::new(&e)))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_network_factory() {
-        let _factory = NetworkFactory::new();
+    async fn vote(&self, target: NodeId, rpc: VoteRequest) -> Result<VoteResponse> {
+        self.post(target, "/raft/vote", rpc).await
     }
 }

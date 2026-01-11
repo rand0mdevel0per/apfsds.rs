@@ -31,6 +31,10 @@ pub struct ClientConfig {
     /// Obfuscation configuration
     #[serde(default)]
     pub obfuscation: ObfuscationConfig,
+
+    /// DNS configuration (Local DNS)
+    #[serde(default)]
+    pub dns: DnsConfig,
 }
 
 impl ClientConfig {
@@ -51,6 +55,7 @@ impl Default for ClientConfig {
             security: SecurityConfig::default(),
             emergency: EmergencyConfig::default(),
             obfuscation: ObfuscationConfig::default(),
+            dns: DnsConfig::default(),
         }
     }
 }
@@ -261,6 +266,31 @@ impl Default for ObfuscationConfig {
             noise_ratio: default_noise_ratio(),
             fake_json_enabled: default_true(),
             sse_keepalive: default_true(),
+        }
+    }
+}
+
+/// Local DNS configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct DnsConfig {
+    /// Enable local DNS server
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    /// Bind address (udp)
+    #[serde(default = "default_dns_bind")]
+    pub bind: SocketAddr,
+}
+
+fn default_dns_bind() -> SocketAddr {
+    "127.0.0.1:53".parse().unwrap() // Default standard DNS port
+}
+
+impl Default for DnsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            bind: default_dns_bind(),
         }
     }
 }

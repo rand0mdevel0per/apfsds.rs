@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  server.toml: |
+    [server]
+    mode = "{{ .Values.deployment.mode }}"
+    bind = "{{ .Values.server.bind }}"
+    
+    [server.handler]
+    location = "{{ .Values.server.handler.location }}"
+    
+    {{- range .Values.server.exitNodes }}
+    [[server.exit_nodes]]
+    name = "{{ .name }}"
+    endpoint = "{{ .endpoint }}"
+    weight = {{ .weight }}
+    {{- end }}
+    
+    [storage]
+    tmpfs_path = "/dev/shm/apfsds"
+    tmpfs_size = {{ .Values.storage.tmpfs.size | replace "Mi" "000000" | replace "Gi" "000000000" }}
+    disk_path = "/var/lib/apfsds"
+    
+    [storage.clickhouse]
+    {{- if .Values.storage.clickhouse.enabled }}
+    enabled = true
+    url = "http://{{ .Values.storage.clickhouse_connect.host }}:{{ .Values.storage.clickhouse_connect.port }}"
+    database = "{{ .Values.storage.clickhouse_connect.database }}"
+    username = "{{ .Values.clickhouse.auth.username }}"
+    # password = "" # TODO: Secret injection
+    {{- else }}
+    enabled = false
+    {{- end }}
+    
+    [database]
+    url = "postgres://{{ .Values.storage.database.username }}:{{ .Values.postgresql.auth.password | default "postgres" }}@{{ .Values.storage.database.host }}:{{ .Values.storage.database.port }}/{{ .Values.storage.database.database }}"
+    
+    [security]
+    token_ttl = {{ .Values.security.tokenTTL }}
+    key_rotation_interval = {{ .Values.security.keyRotationInterval }}
+    grace_period = {{ .Values.security.gracePeriod }}
+    
+    [security.emergency]
+    auto_trigger_dns = {{ .Values.security.emergency.autoTriggerOnDNS }}
+    dns_domain = "{{ .Values.security.emergency.dnsCheckDomain }}"
+    check_interval = {{ .Values.security.emergency.checkInterval }}
+    
+    [monitoring]
+    prometheus_bind = "0.0.0.0:{{ .Values.monitoring.prometheus.port }}"
+    prometheus_enabled = {{ .Values.monitoring.prometheus.enabled }}

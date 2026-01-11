@@ -106,7 +106,10 @@ mod tests {
         frame.checksum = 0xDEADBEEF; // Wrong checksum
 
         let result = validate_frame(&frame, frame.timestamp);
-        assert!(matches!(result, Err(ValidationError::ChecksumMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(ValidationError::ChecksumMismatch { .. })
+        ));
     }
 
     #[test]
@@ -115,7 +118,10 @@ mod tests {
         let future_time = frame.timestamp + 60_000; // 60 seconds later
 
         let result = validate_frame(&frame, future_time);
-        assert!(matches!(result, Err(ValidationError::TimestampOutOfRange(_))));
+        assert!(matches!(
+            result,
+            Err(ValidationError::TimestampOutOfRange(_))
+        ));
     }
 
     #[test]
@@ -124,6 +130,9 @@ mod tests {
         let frame = ProxyFrame::new_data(1, [0; 16], 443, large_payload);
 
         let result = validate_frame(&frame, frame.timestamp);
-        assert!(matches!(result, Err(ValidationError::PayloadTooLarge { .. })));
+        assert!(matches!(
+            result,
+            Err(ValidationError::PayloadTooLarge { .. })
+        ));
     }
 }

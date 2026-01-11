@@ -1,11 +1,10 @@
 //! Authentication module
 
 use apfsds_crypto::{Ed25519KeyPair, HmacAuthenticator, ReplayCache, UuidReplayCache};
-use apfsds_protocol::{AuthRequest, AuthResponse, TokenPayload};
-use std::sync::Arc;
+use apfsds_protocol::{AuthRequest, TokenPayload};
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{debug, warn};
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum AuthError {
@@ -127,8 +126,7 @@ impl Authenticator {
         let mut token = bytes;
         token.extend_from_slice(&signature);
 
-        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &token)
-            .into_bytes()
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &token).into_bytes()
     }
 
     /// Verify and consume a one-time token
@@ -141,15 +139,19 @@ impl Authenticator {
         }
 
         let (payload_bytes, signature) = decoded.split_at(decoded.len() - 64);
-        let signature: [u8; 64] = signature.try_into().map_err(|_| AuthError::InvalidSignature)?;
+        let signature: [u8; 64] = signature
+            .try_into()
+            .map_err(|_| AuthError::InvalidSignature)?;
 
         // Verify signature
         Ed25519KeyPair::verify_with_pk(&self.keypair.public_key(), payload_bytes, &signature)
             .map_err(|_| AuthError::InvalidSignature)?;
 
         // Deserialize
-        let archived = rkyv::access::<apfsds_protocol::ArchivedTokenPayload, rkyv::rancor::Error>(payload_bytes)
-            .map_err(|e| AuthError::CryptoError(e.to_string()))?;
+        let archived = rkyv::access::<apfsds_protocol::ArchivedTokenPayload, rkyv::rancor::Error>(
+            payload_bytes,
+        )
+        .map_err(|e| AuthError::CryptoError(e.to_string()))?;
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -189,9 +191,7 @@ fn extract_user_id(hmac_base: &[u8]) -> Result<u64, AuthError> {
         return Err(AuthError::InvalidHmac);
     }
 
-    parts[0]
-        .parse()
-        .map_err(|_| AuthError::InvalidHmac)
+    parts[0].parse().map_err(|_| AuthError::InvalidHmac)
 }
 
 #[cfg(test)]

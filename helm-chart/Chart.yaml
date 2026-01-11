@@ -1,0 +1,22 @@
+apiVersion: v2
+name: apfsds
+description: APFSDS - Privacy-preserving network proxy
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - proxy
+  - vpn
+  - privacy
+maintainers:
+  - name: APFSDS Team
+
+dependencies:
+  - name: postgresql
+    version: 12.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: clickhouse
+    version: 4.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: clickhouse.enabled

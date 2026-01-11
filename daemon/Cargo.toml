@@ -14,9 +14,12 @@ apfsds-crypto = { path = "../crates/crypto" }
 apfsds-transport = { path = "../crates/transport" }
 apfsds-obfuscation = { path = "../crates/obfuscation" }
 apfsds-storage = { path = "../crates/storage" }
+apfsds-raft = { path = "../crates/raft" }
+etherparse = "0.13"
 
 tokio.workspace = true
 tokio-tungstenite.workspace = true
+tokio-stream = "0.1"
 futures.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
@@ -33,6 +36,16 @@ rkyv.workspace = true
 dashmap.workspace = true
 base64.workspace = true
 prometheus.workspace = true
+async-trait = "0.1"
+fastrand.workspace = true
+uuid.workspace = true
+crates_io_api.workspace = true
+hex = "0.4"
+maxminddb = "0.27"
+axum = { version = "0.7", features = ["macros"] }
 
 # CLI
 clap = { version = "4", features = ["derive"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tun = "0.6"

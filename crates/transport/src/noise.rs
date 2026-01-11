@@ -2,7 +2,6 @@
 
 use serde_json::json;
 use std::time::Duration;
-use tracing::trace;
 
 /// Generate a fake SSE keepalive message
 pub fn generate_sse_keepalive() -> String {

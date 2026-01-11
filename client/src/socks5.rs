@@ -97,32 +97,76 @@ async fn handle_connection(
     let target = parse_target(&mut stream, atyp).await?;
     debug!("Connection from {} to {}", addr, target);
 
-    // 3. TODO: Forward through WebSocket to daemon
-    // For now, just do direct connection (for testing)
-    match TcpStream::connect(&target).await {
-        Ok(target_stream) => {
+    // Resolve target to IP/Port (ProxyFrame requires IP)
+    let target_sock_addr = match tokio::net::lookup_host(&target).await {
+        Ok(mut iter) => iter
+            .next()
+            .ok_or(anyhow::anyhow!("No IP found for target"))?,
+        Err(e) => {
+            error!("DNS resolution failed for {}: {}", target, e);
+            send_reply(&mut stream, REP_HOST_UNREACHABLE).await?;
+            return Ok(());
+        }
+    };
+
+    // Connect to Daemon via WSS Tunnel
+    info!("Tunneling connection to {} via WSS", target);
+    match crate::wss::WssSession::connect(config).await {
+        Ok(session) => {
             send_reply(&mut stream, REP_SUCCESS).await?;
-            
-            // Bidirectional copy
+
+            let conn_id = session.conn_id; // Capture ID before split
+            let (wss_sender, mut wss_receiver) = session.split();
             let (mut client_read, mut client_write) = stream.into_split();
-            let (mut target_read, mut target_write) = target_stream.into_split();
 
-            let c2t = tokio::io::copy(&mut client_read, &mut target_write);
-            let t2c = tokio::io::copy(&mut target_read, &mut client_write);
+            // Prepare Target Info for ProxyFrame
+            let rip = match target_sock_addr.ip() {
+                std::net::IpAddr::V4(ip) => ip.to_ipv6_mapped().octets(),
+                std::net::IpAddr::V6(ip) => ip.octets(),
+            };
+            let rport = target_sock_addr.port();
 
-            tokio::select! {
-                r = c2t => { trace!("client->target finished: {:?}", r); }
-                r = t2c => { trace!("target->client finished: {:?}", r); }
+            // Task: TCP -> WSS
+            let sender_task = tokio::spawn(async move {
+                let mut buf = [0u8; 8192];
+                loop {
+                    match client_read.read(&mut buf).await {
+                        Ok(0) => break, // EOF
+                        Ok(n) => {
+                            let frame = apfsds_protocol::ProxyFrame::new_data(
+                                conn_id,
+                                rip,
+                                rport,
+                                buf[..n].to_vec(),
+                            );
+                            if let Err(e) = wss_sender.send_frame(&frame).await {
+                                error!("WSS send failed: {}", e);
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            error!("TCP read failed: {}", e);
+                            break;
+                        }
+                    }
+                }
+            });
+
+            // Task: WSS -> TCP
+            while let Ok(Some(frame)) = wss_receiver.recv_frame().await {
+                if !frame.flags.is_control {
+                    if let Err(e) = client_write.write_all(&frame.payload).await {
+                        error!("TCP write failed: {}", e);
+                        break;
+                    }
+                }
             }
+
+            let _ = sender_task.await;
         }
         Err(e) => {
-            error!("Failed to connect to {}: {}", target, e);
-            let reply = match e.kind() {
-                std::io::ErrorKind::ConnectionRefused => REP_CONNECTION_REFUSED,
-                std::io::ErrorKind::PermissionDenied => REP_CONNECTION_NOT_ALLOWED,
-                _ => REP_HOST_UNREACHABLE,
-            };
-            send_reply(&mut stream, reply).await?;
+            error!("Failed to connect to WSS Upstream: {}", e);
+            send_reply(&mut stream, REP_CONNECTION_REFUSED).await?;
         }
     }
 
@@ -169,8 +213,12 @@ async fn send_reply(stream: &mut TcpStream, rep: u8) -> Result<()> {
         rep,
         0x00, // RSV
         ATYP_IPV4,
-        0, 0, 0, 0, // BND.ADDR
-        0, 0, // BND.PORT
+        0,
+        0,
+        0,
+        0, // BND.ADDR
+        0,
+        0, // BND.PORT
     ];
     stream.write_all(&reply).await?;
     Ok(())
