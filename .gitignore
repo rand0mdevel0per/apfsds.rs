@@ -45,3 +45,9 @@ tarpaulin-report.html
 
 # Debug
 *.dSYM/
+
+# Data
+data/
+*.wal
+*.db
+
