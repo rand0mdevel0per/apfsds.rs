@@ -7,26 +7,28 @@
 
 use crate::config::DaemonConfig;
 use crate::connection_registry::ConnectionRegistry;
-use crate::metrics::Metrics;
+use apfsds_raft;
 use anyhow::Result;
 use axum::{
-    extract::{Path, State},
+    extract::{Json, Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, post, delete},
-    Json, Router,
+    response::Html,
+    routing::{delete, get, post},
+    Router,
 };
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::{info, error};
+use tracing::info;
 
 /// Management API Configuration
 #[derive(Clone)]
 struct AppState {
     config: Arc<DaemonConfig>,
     registry: Arc<ConnectionRegistry>,
+    raft_node: Option<Arc<apfsds_raft::RaftNode>>,
     // pg_client: PgClient, // TODO: Require PgClient for user management
 }
 
@@ -58,17 +60,21 @@ pub async fn start_server(
     bind: SocketAddr,
     config: Arc<DaemonConfig>,
     registry: Arc<ConnectionRegistry>,
+    raft_node: Option<Arc<apfsds_raft::RaftNode>>,
 ) -> Result<()> {
     let state = AppState {
         config,
         registry,
+        raft_node,
     };
 
     let app = Router::new()
+        .route("/", get(dashboard))
         .route("/admin/users", post(create_user))
         .route("/admin/users/:id", delete(delete_user))
         .route("/admin/nodes", post(register_node))
         .route("/admin/stats", get(get_stats))
+        .route("/admin/cluster/membership", post(change_cluster_membership))
         .with_state(state);
 
     info!("Management API listening on {}", bind);
@@ -76,6 +82,45 @@ pub async fn start_server(
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+#[derive(Deserialize)]
+struct MembershipRequest {
+    members: Vec<u64>,
+}
+
+// Basic Dashboard Handler
+async fn dashboard() -> Html<&'static str> {
+    Html(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>APFSDS Dashboard</title>
+    <style>body{font-family:sans-serif;background:#1a1b1e;color:#fff;padding:20px}.card{background:#25262b;padding:20px;margin-bottom:20px;border-radius:8px}</style>
+</head>
+<body>
+    <div class="card">
+        <h1>APFSDS Dashboard</h1>
+        <p>System is running.</p>
+        <p><a href="/metrics">Prometheus Metrics</a></p>
+    </div>
+</body>
+</html>"#)
+}
+
+async fn change_cluster_membership(
+    State(state): State<AppState>,
+    Json(payload): Json<MembershipRequest>,
+) -> Json<serde_json::Value> {
+    if let Some(raft) = &state.raft_node {
+        let members: std::collections::HashSet<u64> = payload.members.into_iter().collect();
+        match raft.change_membership(members).await {
+            Ok(_) => Json(serde_json::json!({ "status": "success", "message": "Membership change initiated" })),
+            Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+        }
+    } else {
+        Json(serde_json::json!({ "status": "error", "message": "Raft node not initialized" }))
+    }
 }
 
 async fn create_user(

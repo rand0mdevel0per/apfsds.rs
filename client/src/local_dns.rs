@@ -6,7 +6,7 @@ use crate::config::ClientConfig;
 use anyhow::Result;
 use apfsds_obfuscation::{PaddingStrategy, XorMask};
 use apfsds_protocol::{ControlMessage, FrameFlags, ProxyFrame};
-use futures::{SinkExt, StreamExt};
+use futures::SinkExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;

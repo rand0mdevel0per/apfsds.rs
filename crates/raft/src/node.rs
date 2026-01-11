@@ -52,4 +52,14 @@ impl RaftNode {
     pub async fn add_peer(&self, id: NodeId, addr: String) {
         self.peers.write().await.insert(id, addr);
     }
+
+    /// Change cluster membership
+    pub async fn change_membership(&self, members: std::collections::HashSet<NodeId>) -> anyhow::Result<()> {
+        self.raft.change_membership(members).await.map_err(|e| anyhow::anyhow!("Raft membership error: {:?}", e))
+    }
+
+    /// Get Raft metrics
+    pub async fn get_metrics(&self) -> async_raft::RaftMetrics {
+        self.raft.metrics().borrow().clone()
+    }
 }

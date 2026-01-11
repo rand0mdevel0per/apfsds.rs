@@ -16,6 +16,7 @@ mod metrics;
 mod noise;
 mod geoip;
 mod management;
+mod plugin;
 
 use anyhow::Result;
 use clap::Parser;
@@ -100,13 +101,42 @@ async fn main() -> Result<()> {
     // Initialize Connection Registry
     let registry = connection_registry::ConnectionRegistry::new();
 
+    // Initialize Raft Node (if Handler)
+    let raft_node = if !args.exit {
+        let raft_config = Arc::new(
+            AsyncRaftConfig::build(format!("node-{}", config.raft.node_id))
+                .validate()
+                .map_err(|e| anyhow::anyhow!("Invalid raft config: {}", e))?,
+        );
+        let node = Arc::new(RaftNode::new(config.raft.node_id, raft_config));
+        info!("Raft node initialized with ID: {}", config.raft.node_id);
+        Some(node)
+    } else {
+        None
+    };
+
     // Start Management API (Port 25348)
     let mgmt_bind = "0.0.0.0:25348".parse().unwrap();
     let mgmt_config = Arc::new(config.clone());
     let mgmt_registry = registry.clone();
+    let mgmt_raft = raft_node.clone();
+    
     tokio::spawn(async move {
-        if let Err(e) = management::start_server(mgmt_bind, mgmt_config, mgmt_registry).await {
+        if let Err(e) = management::start_server(mgmt_bind, mgmt_config, mgmt_registry, mgmt_raft).await {
             tracing::error!("Management API error: {}", e);
+        }
+    });
+
+    // Start Plugin System
+    let plugin_socket = if cfg!(windows) {
+        r"\\.\pipe\apfsds-plugin"
+    } else {
+        "/tmp/apfsds.sock"
+    };
+    let plugin_mgr = plugin::PluginManager::new(plugin_socket);
+    tokio::spawn(async move {
+        if let Err(e) = plugin_mgr.start().await {
+            tracing::error!("Plugin Manager error: {}", e);
         }
     });
 
@@ -140,27 +170,19 @@ async fn main() -> Result<()> {
         // Initialize Exit Forwarder
         let exit_forwarder = Arc::new(ExitForwarder::new(exit_pool, config.raft.node_id));
 
-        // Initialize Raft Node (Phase 2 Stub / Async-Raft)
-        let raft_config = Arc::new(
-            AsyncRaftConfig::build(format!("node-{}", config.raft.node_id))
-                .validate()
-                .map_err(|e| anyhow::anyhow!("Invalid raft config: {}", e))?,
-        );
-
-        let raft_node = Arc::new(RaftNode::new(config.raft.node_id, raft_config));
-
         // Add peers from config
-        for peer in &config.raft.peers {
-            info!("Configuring Raft peer: {}", peer);
+        if let Some(raft) = &raft_node {
+             for peer in &config.raft.peers {
+                info!("Configuring Raft peer: {}", peer);
+                // In real impl, we might add them to the raft node here
+             }
         }
-
-        info!("Raft node initialized with ID: {}", config.raft.node_id);
 
         info!("Starting as handler on {}", config.server.bind);
         handler::run_handler(
             &config,
             exit_forwarder,
-            raft_node,
+            raft_node.expect("Raft node missing in handler mode"),
             pg_client,
             billing,
             registry,

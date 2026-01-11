@@ -8,6 +8,11 @@ license.workspace = true
 name = "apfsds"
 path = "src/main.rs"
 
+[lib]
+name = "apfsds_client"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 apfsds-protocol = { path = "../crates/protocol" }
 apfsds-crypto = { path = "../crates/crypto" }
