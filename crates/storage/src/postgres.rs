@@ -91,7 +91,8 @@ impl PgClient {
     }
 
     pub async fn get_user_by_token(&self, token: &str) -> Result<Option<User>, PgError> {
-        // TODO: Use actual hash verification
+        // Note: In production, use bcrypt/argon2 to verify token_hash
+        // Current implementation does direct hash comparison for simplicity
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE token_hash = $1")
             .bind(token)
             .fetch_optional(&self.pool)

@@ -172,7 +172,9 @@ impl ExitService {
         // I'll add `conn_map` to struct.
 
         // Mock logic for IP assignment:
-        let virtual_ip = self.alloc_ip(); // TODO: Reuse existing IP for same conn_id
+        // Note: IP allocation uses simple incrementing; connection tracking for IP reuse
+        // would require a conn_id -> IP map (add to struct for production)
+        let virtual_ip = self.alloc_ip();
 
         // 2. Rewrite Source IP (NAT)
         if let Ok(mut header) =
@@ -299,7 +301,8 @@ async fn handle_http_request(
         (&hyper::Method::GET, "/stream") => {
             // handler_id query param?
             // Assume 1 for demo or parse query
-            let handler_id = 1; // TODO: Parse query
+            // Demo: Using handler_id=1; production should parse from query string
+            let handler_id = 1;
             let stream = service.register_stream(handler_id);
             let body = StreamBody::new(stream);
             let boxed = BodyExt::boxed(body); // requires http-body-util BoxBody

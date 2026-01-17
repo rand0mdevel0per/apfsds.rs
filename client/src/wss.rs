@@ -36,8 +36,12 @@ impl WssSession {
             .first()
             .ok_or_else(|| anyhow!("No endpoints configured"))?;
 
-        // Construct URL (TODO: Scheme based on SSL config, defaulting to ws:// for dev)
-        let url = format!("ws://{}/ws", endpoint); // Assuming /ws path
+        // Determine scheme based on endpoint prefix or use default ws://
+        let url = if endpoint.starts_with("wss://") || endpoint.starts_with("ws://") {
+            format!("{}/ws", endpoint)
+        } else {
+            format!("ws://{}/ws", endpoint)
+        };
 
         info!("Connecting to WSS upstream: {}", url);
         let (ws_stream, _) = connect_async(&url).await?;

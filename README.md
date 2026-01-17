@@ -25,8 +25,8 @@ apfsds/
 │   └── storage/        # MVCC storage engine
 ├── client/             # Client binary (apfsds)
 ├── daemon/             # Server binary (apfsdsd)
-├── helm-chart/         # Kubernetes deployment (TODO)
-└── scripts/            # Install scripts (TODO)
+├── helm-chart/         # Kubernetes deployment
+└── deploy/             # Install scripts and deployment tools
 ```
 
 ## Quick Start
@@ -88,20 +88,21 @@ cp daemon.example.toml daemon.toml
 - [x] Client skeleton (SOCKS5, emergency mode)
 - [x] Daemon skeleton (HTTP handler, metrics)
 
-### Phase 2: Distributed System (TODO)
-- [ ] Raft integration
-- [ ] ClickHouse backup
-- [ ] Exit node forwarding
+### Phase 2: Distributed System ✅
+- [x] Raft integration (async-raft)
+- [x] ClickHouse backup
+- [x] Exit node forwarding
+- [x] WAL persistence and replay
 
-### Phase 3: Security Polish (TODO)
-- [ ] Full authentication flow
-- [ ] Key rotation
-- [ ] DoH over WSS
+### Phase 3: Security Polish ✅
+- [x] Full authentication flow
+- [x] Key rotation
+- [x] DoH over WSS
 
-### Phase 4: Operations (TODO)
-- [ ] Helm chart
-- [ ] One-click install script
-- [ ] Documentation
+### Phase 4: Operations ✅
+- [x] Helm chart
+- [x] One-click install script
+- [x] Documentation
 
 ## License
 

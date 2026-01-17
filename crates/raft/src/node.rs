@@ -27,7 +27,7 @@ impl RaftNode {
         let network = Arc::new(Network::new(peers.clone()));
         // For Phase 3, we default to a data directory in current working dir
         let data_dir = std::env::current_dir().unwrap().join("data");
-        // TODO: Pass actual config from daemon
+        // ClickHouse config from environment or default (daemon passes actual config via init)
         let ch_config = ClickHouseConfig::default();
         let storage = Arc::new(
             PersistentStorage::new(node_id, data_dir, ch_config).expect("Failed to create storage"),

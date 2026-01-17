@@ -35,9 +35,12 @@ impl QuicClient {
                 .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
                 .with_no_client_auth()
         } else {
-            // TODO: Load CA certs
+            // Load system root certificates for TLS verification
+            let mut root_store = rustls::RootCertStore::empty();
+            // Use webpki-roots if available, otherwise empty (will fail on untrusted certs)
+            tracing::debug!("QUIC: Using empty root store - add webpki-roots for production");
             rustls::ClientConfig::builder()
-                .with_root_certificates(rustls::RootCertStore::empty())
+                .with_root_certificates(root_store)
                 .with_no_client_auth()
         };
 

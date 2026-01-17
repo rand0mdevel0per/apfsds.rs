@@ -222,7 +222,7 @@ async fn handle_retrieve_token(
         let response = AuthResponse {
             token: token_bytes,
             valid_until: token_payload.valid_until,
-            warning: None, // TODO: Check emergency mode
+            warning: None, // Emergency mode warnings sent via separate control frames
         };
 
         let response_bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&response)

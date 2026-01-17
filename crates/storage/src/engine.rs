@@ -172,7 +172,9 @@ impl StorageEngine {
 
         // Check if we need to compact
         if sealed.len() > self.config.compaction_threshold {
-            // TODO: Trigger async compaction
+            // Compaction: merge sealed segments and remove obsolete entries
+            // For now, just log - production would spawn async compaction task
+            tracing::info!("Compaction threshold reached: {} sealed segments", sealed.len());
         }
 
         Ok(())

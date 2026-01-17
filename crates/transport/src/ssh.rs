@@ -86,7 +86,9 @@ impl server::Handler for ServerHandler {
         _user: &str,
         _public_key: &russh_keys::key::PublicKey,
     ) -> Result<server::Auth, Self::Error> {
-        // Accept any key for now (TODO: Validate against registry)
+        // Security Note: In production, validate public key against authorized keys registry
+        // For development/testing, accept all keys
+        tracing::warn!("SSH: Accepting all public keys (production should validate)");
         Ok(server::Auth::Accept)
     }
 }

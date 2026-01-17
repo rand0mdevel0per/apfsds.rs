@@ -31,7 +31,7 @@ data:
     url = "http://{{ .Values.storage.clickhouse_connect.host }}:{{ .Values.storage.clickhouse_connect.port }}"
     database = "{{ .Values.storage.clickhouse_connect.database }}"
     username = "{{ .Values.clickhouse.auth.username }}"
-    # password = "" # TODO: Secret injection
+    # Password injected via envFrom secret reference in deployment.yaml
     {{- else }}
     enabled = false
     {{- end }}

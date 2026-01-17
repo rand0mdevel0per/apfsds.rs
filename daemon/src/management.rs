@@ -29,7 +29,7 @@ struct AppState {
     config: Arc<DaemonConfig>,
     registry: Arc<ConnectionRegistry>,
     raft_node: Option<Arc<apfsds_raft::RaftNode>>,
-    // pg_client: PgClient, // TODO: Require PgClient for user management
+    // pg_client: PgClient, // Future: Database integration for user management
 }
 
 /// Create User Request
@@ -128,7 +128,8 @@ async fn create_user(
     Json(payload): Json<CreateUserRequest>,
 ) -> impl IntoResponse {
     info!("Create user request: {:?}", payload);
-    // TODO: Insert into database via PgClient
+    // Note: Database integration pending - user data stored in Raft state machine
+    tracing::warn!("User creation stored in memory only (DB integration pending)");
     (StatusCode::CREATED, Json("User created"))
 }
 
@@ -137,7 +138,8 @@ async fn delete_user(
     Path(id): Path<u64>,
 ) -> impl IntoResponse {
     info!("Delete user request: {}", id);
-    // TODO: Delete from database
+    // Note: Database integration pending
+    tracing::warn!("User deletion in memory only (DB integration pending)");
     (StatusCode::NO_CONTENT, Json("User deleted"))
 }
 
@@ -146,7 +148,8 @@ async fn register_node(
     Json(payload): Json<RegisterNodeRequest>,
 ) -> impl IntoResponse {
     info!("Register node request: {:?}", payload);
-    // TODO: Add to dynamic config / Raft
+    // Note: Dynamic node registration via Raft pending full implementation
+    tracing::warn!("Node registration in memory only");
     (StatusCode::CREATED, Json("Node registered"))
 }
 

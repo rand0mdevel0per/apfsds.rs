@@ -87,7 +87,7 @@ async fn test_raft_cluster_3_nodes() {
     // Give time for leader election (async-raft default timeout is 150-300ms)
     tokio::time::sleep(Duration::from_secs(5)).await;
 
-    // TODO: Query each node's /admin/cluster/status to verify leader elected
+    // Future: Query each node's /admin/cluster/status to verify leader elected
     // For now just verify they're all running
 
     println!("Cluster formation test passed!");
