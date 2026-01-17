@@ -5,7 +5,7 @@
 **A Privacy-preserving Forwarding System with Distributed Storage**
 
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/rand0mdevel0per/apfsds.rs)
 
 *"The M829A2 APFSDS-T can penetrate over 600mm of reinforced steel. Truth pierces all veils; no wall stands eternal."*
@@ -243,12 +243,7 @@ cargo test --workspace
 
 ## 📄 License
 
-Licensed under either of:
-
-- **MIT License** ([LICENSE-MIT](LICENSE-MIT))
-- **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
-
-at your option.
+**MIT License** ([LICENSE-MIT](LICENSE-MIT))
 
 ---
 
