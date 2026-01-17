@@ -3,6 +3,7 @@ name = "apfsds-storage"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Persistent storage layer for APFSDS (WAL, ClickHouse, PostgreSQL)"
 
 [dependencies]
 apfsds-protocol = { path = "../protocol", version = "0.1.0" }

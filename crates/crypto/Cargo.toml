@@ -3,6 +3,7 @@ name = "apfsds-crypto"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Cryptographic primitives for APFSDS (X25519, AES-GCM, Ed25519)"
 
 [dependencies]
 aes-gcm.workspace = true

@@ -3,6 +3,7 @@ name = "apfsds-client"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "APFSDS client - censorship-resistant proxy client (SOCKS5/TUN)"
 
 [[bin]]
 name = "apfsds"

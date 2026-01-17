@@ -3,6 +3,7 @@ name = "apfsds-protocol"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Wire protocol and frame definitions for APFSDS"
 
 [dependencies]
 rkyv.workspace = true

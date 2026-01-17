@@ -2,6 +2,9 @@
 name = "apfsds-cli"
 version = "0.1.0"
 edition = "2021"
+description = "CLI tool for managing APFSDS distributed proxy network"
+license = "MIT"
+repository = "https://github.com/rand0mdevel0per/apfsds.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

@@ -3,6 +3,7 @@ name = "apfsds-raft"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Raft consensus layer for APFSDS distributed coordination"
 
 [dependencies]
 apfsds-protocol = { path = "../protocol", version = "0.1.0" }

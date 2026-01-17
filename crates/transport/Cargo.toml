@@ -3,6 +3,7 @@ name = "apfsds-transport"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Network transports for APFSDS (mTLS, QUIC, SSH, WebSocket)"
 
 [dependencies]
 apfsds-protocol = { path = "../protocol", version = "0.1.0" }
