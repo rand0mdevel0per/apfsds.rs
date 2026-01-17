@@ -243,7 +243,7 @@ cargo test --workspace
 
 ## 📄 License
 
-**MIT License** ([LICENSE-MIT](LICENSE-MIT))
+[**MIT License**](LICENSE)
 
 ---
 
@@ -251,6 +251,6 @@ cargo test --workspace
 
 **[⬆ Back to Top](#-apfsds)**
 
-Made with ❤️ by the APFSDS Team
+Made with ❤️ by rand0mdevel0per
 
 </div>
