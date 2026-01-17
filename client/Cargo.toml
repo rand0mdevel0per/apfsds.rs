@@ -14,10 +14,10 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-apfsds-protocol = { path = "../crates/protocol" }
-apfsds-crypto = { path = "../crates/crypto" }
-apfsds-transport = { path = "../crates/transport" }
-apfsds-obfuscation = { path = "../crates/obfuscation" }
+apfsds-protocol = { path = "../crates/protocol", version = "0.1.0" }
+apfsds-crypto = { path = "../crates/crypto", version = "0.1.0" }
+apfsds-transport = { path = "../crates/transport", version = "0.1.0" }
+apfsds-obfuscation = { path = "../crates/obfuscation", version = "0.1.0" }
 
 tokio.workspace = true
 futures.workspace = true

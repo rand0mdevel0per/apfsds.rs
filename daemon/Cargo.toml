@@ -9,12 +9,12 @@ name = "apfsdsd"
 path = "src/main.rs"
 
 [dependencies]
-apfsds-protocol = { path = "../crates/protocol" }
-apfsds-crypto = { path = "../crates/crypto" }
-apfsds-transport = { path = "../crates/transport" }
-apfsds-obfuscation = { path = "../crates/obfuscation" }
-apfsds-storage = { path = "../crates/storage" }
-apfsds-raft = { path = "../crates/raft" }
+apfsds-protocol = { path = "../crates/protocol", version = "0.1.0" }
+apfsds-crypto = { path = "../crates/crypto", version = "0.1.0" }
+apfsds-transport = { path = "../crates/transport", version = "0.1.0" }
+apfsds-obfuscation = { path = "../crates/obfuscation", version = "0.1.0" }
+apfsds-storage = { path = "../crates/storage", version = "0.1.0" }
+apfsds-raft = { path = "../crates/raft", version = "0.1.0" }
 etherparse = "0.13"
 
 tokio.workspace = true
