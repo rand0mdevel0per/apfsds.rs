@@ -5,6 +5,7 @@ members = [
     "daemon",
     "client",
     "cli",
+    "tests",
 ]
 
 [workspace.package]
@@ -72,3 +73,6 @@ tun = { version = "0.7", features = ["async"] }
 
 # crates.io API (for emergency mode)
 crates_io_api = "0.11"
+
+# Placeholder for workspace-level settings (tests are in individual crates)
+
