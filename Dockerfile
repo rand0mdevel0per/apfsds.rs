@@ -41,8 +41,10 @@ COPY client/ client/
 COPY cli/ cli/
 COPY tests/ tests/
 
-# Touch to invalidate cache on source change
-RUN touch daemon/src/main.rs client/src/main.rs cli/src/main.rs
+# Touch all source files to invalidate incremental cache
+RUN touch daemon/src/main.rs client/src/main.rs cli/src/main.rs && \
+    touch crates/protocol/src/lib.rs crates/crypto/src/lib.rs crates/obfuscation/src/lib.rs && \
+    touch crates/transport/src/lib.rs crates/storage/src/lib.rs crates/raft/src/lib.rs
 
 # Build release binaries
 RUN cargo build --release --bin apfsdsd --bin apfsds --bin apfsds-cli
