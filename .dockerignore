@@ -1,0 +1,29 @@
+# Build artifacts
+target/
+*.rmeta
+*.rlib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+tests/*.toml
+*.log
+
+# Local config files
+*.local.toml
+.env
+
+# Documentation build
+docs/_build/
+
+# Temporary
+tmp/
+temp/

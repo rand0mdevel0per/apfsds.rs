@@ -2,8 +2,8 @@
 replicaCount: 3
 
 image:
-  repository: ghcr.io/yourrepo/apfsds
-  tag: "0.1.0"
+  repository: ghcr.io/rand0mdevel0per/apfsds.rs
+  tag: "0.2.0"
   pullPolicy: IfNotPresent
 
 deployment:
