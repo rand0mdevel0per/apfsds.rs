@@ -6,9 +6,9 @@ license.workspace = true
 description = "Network transports for APFSDS (mTLS, QUIC, SSH, WebSocket)"
 
 [dependencies]
-apfsds-protocol = { path = "../protocol", version = "0.1.0" }
-apfsds-crypto = { path = "../crypto", version = "0.1.0" }
-apfsds-obfuscation = { path = "../obfuscation", version = "0.1.0" }
+apfsds-protocol = { path = "../protocol", version = "0.2.0" }
+apfsds-crypto = { path = "../crypto", version = "0.2.0" }
+apfsds-obfuscation = { path = "../obfuscation", version = "0.2.0" }
 
 tokio.workspace = true
 tokio-tungstenite.workspace = true
@@ -36,3 +36,4 @@ russh-keys = "0.45"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+

@@ -6,7 +6,7 @@ license.workspace = true
 description = "Persistent storage layer for APFSDS (WAL, ClickHouse, PostgreSQL)"
 
 [dependencies]
-apfsds-protocol = { path = "../protocol", version = "0.1.0" }
+apfsds-protocol = { path = "../protocol", version = "0.2.0" }
 
 tokio.workspace = true
 rkyv.workspace = true
@@ -24,3 +24,4 @@ sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid"
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tempfile = "3"
+

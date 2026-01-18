@@ -4,7 +4,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
     aead::{Aead, KeyInit},
 };
-use rand::RngCore;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]

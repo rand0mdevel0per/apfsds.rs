@@ -1,4 +1,5 @@
 //! Integration Test Harness
+#![allow(dead_code)]
 //!
 //! Provides shared utilities for spawning daemon/client processes
 //! and managing test fixtures.
@@ -9,6 +10,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 /// Test configuration
+#[allow(dead_code)]
 pub struct TestConfig {
     pub daemon_bind: SocketAddr,
     pub management_bind: SocketAddr,

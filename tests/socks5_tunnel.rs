@@ -152,7 +152,7 @@ async fn test_socks5_concurrent() {
     }
 
     let results: Vec<_> = futures::future::join_all(handles).await;
-    let success_count = results.iter().filter(|r| r.as_ref() == Ok(&true)).count();
+    let success_count = results.iter().filter(|r| matches!(r, Ok(true))).count();
 
     println!(
         "Concurrent test: {}/{} connections succeeded",

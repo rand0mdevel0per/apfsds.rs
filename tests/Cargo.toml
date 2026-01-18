@@ -1,6 +1,6 @@
 [package]
 name = "apfsds-tests"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 publish = false
 
@@ -34,3 +34,4 @@ path = "raft_cluster.rs"
 [[test]]
 name = "tun_mode"
 path = "tun_mode.rs"
+

@@ -59,22 +59,22 @@ apfsds/
 ### Installation
 
 ```bash
-# Clone repository
-git clone https://github.com/rand0mdevel0per/apfsds.rs.git
-cd apfsds
+# Install daemon (server)
+cargo install apfsds-daemon
 
-# Build release binaries
-cargo build --release
+# Install client
+cargo install apfsds-client
 
-# Optional: Install globally
-sudo cp target/release/apfsdsd /usr/local/bin/
-sudo cp target/release/apfsds /usr/local/bin/
+# Install CLI (management tool)
+cargo install apfsds-cli
 ```
 
-### One-liner Install
+### Build from Source
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/rand0mdevel0per/apfsds.rs/master/deploy/install.sh | bash
+git clone https://github.com/rand0mdevel0per/apfsds.rs.git
+cd apfsds
+cargo build --release
 ```
 
 ### Running the Daemon

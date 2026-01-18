@@ -9,7 +9,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/rand0mdevel0per/apfsds.rs"
@@ -75,4 +75,5 @@ tun = { version = "0.7", features = ["async"] }
 crates_io_api = "0.11"
 
 # Placeholder for workspace-level settings (tests are in individual crates)
+
 
