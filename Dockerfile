@@ -46,8 +46,8 @@ RUN touch daemon/src/main.rs client/src/main.rs cli/src/main.rs && \
     touch crates/protocol/src/lib.rs crates/crypto/src/lib.rs crates/obfuscation/src/lib.rs && \
     touch crates/transport/src/lib.rs crates/storage/src/lib.rs crates/raft/src/lib.rs
 
-# Build release binaries
-RUN cargo build --release --bin apfsdsd --bin apfsds --bin apfsds-cli
+# Build release binary (daemon only for deployment)
+RUN cargo build --release --bin apfsdsd
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -62,10 +62,8 @@ RUN useradd -r -s /bin/false apfsds
 
 WORKDIR /app
 
-# Copy binaries from builder
+# Copy daemon binary from builder
 COPY --from=builder /app/target/release/apfsdsd /usr/local/bin/
-COPY --from=builder /app/target/release/apfsds /usr/local/bin/
-COPY --from=builder /app/target/release/apfsds-cli /usr/local/bin/
 
 # Create data directory
 RUN mkdir -p /var/lib/apfsds && chown apfsds:apfsds /var/lib/apfsds
