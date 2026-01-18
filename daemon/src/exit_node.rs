@@ -28,9 +28,9 @@ use tun::platform::Device;
 /// Exit Node Service
 pub struct ExitService {
     #[cfg(target_os = "linux")]
-    tun: Arc<Mutex<Device>>,
+    tun: Arc<std::sync::Mutex<Device>>,
     #[cfg(not(target_os = "linux"))]
-    tun: Arc<Mutex<()>>,
+    tun: Arc<std::sync::Mutex<()>>,
 
     /// Map of Virtual IP -> (HandlerID, ConnID) for return traffic routing
     route_map: Arc<DashMap<Ipv4Addr, RouteEntry>>,
@@ -62,15 +62,15 @@ impl ExitService {
                 config.packet_information(false);
             });
 
-            let dev = tun::create_as_async(&config)
+            let dev = tun::create(&config)
                 .map_err(|e| anyhow::anyhow!("Failed to create TUN: {}", e))?;
-            Arc::new(Mutex::new(dev))
+            Arc::new(std::sync::Mutex::new(dev))
         };
 
         #[cfg(not(target_os = "linux"))]
         let tun = {
             warn!("TUN is only supported on Linux. Using mock.");
-            Arc::new(Mutex::new(()))
+            Arc::new(std::sync::Mutex::new(()))
         };
 
         let route_map = Arc::new(DashMap::new());
@@ -94,15 +94,16 @@ impl ExitService {
         tokio::spawn(async move {
             #[cfg(target_os = "linux")]
             {
+                use std::io::Read;
                 let mut buf = [0u8; 2048];
                 loop {
                     let n = {
-                        let mut tun = self.tun.lock().await;
-                        match tun.read(&mut buf).await {
+                        let mut tun = self.tun.lock().unwrap();
+                        match tun.read(&mut buf) {
                             Ok(n) => n,
                             Err(e) => {
                                 error!("TUN read error: {}", e);
-                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                std::thread::sleep(std::time::Duration::from_millis(100));
                                 continue;
                             }
                         }
@@ -122,12 +123,14 @@ impl ExitService {
                                 // We send a PlainPacket with payload=packet, conn_id=route.conn_id
 
                                 let pp = PlainPacket {
-                                    magic: 0xDEADBEEF,
+                                    magic: PlainPacket::MAGIC,
                                     conn_id: route.conn_id,
-                                    handler_id: route.handler_id, // Echo back?
-                                    seq: 0,
-                                    flags: apfsds_protocol::PacketFlags::default(),
+                                    handler_id: route.handler_id,
+                                    rip: [0; 16],
+                                    rport: 0,
                                     payload: packet.to_vec(),
+                                    checksum: crc32fast::hash(packet),
+                                    is_response: true,
                                 };
 
                                 // Serialize?
@@ -178,7 +181,7 @@ impl ExitService {
 
         // 2. Rewrite Source IP (NAT)
         if let Ok(mut header) =
-            etherparse::Ipv4Header::read_from_slice(&packet.payload).map(|(h, _)| h)
+            etherparse::Ipv4Header::from_slice(&packet.payload).map(|(h, _)| h)
         {
             header.source = virtual_ip.octets();
             // Recalculate checksum?
@@ -221,9 +224,9 @@ impl ExitService {
 
         #[cfg(target_os = "linux")]
         {
-            let mut tun = self.tun.lock().await;
-            use tokio::io::AsyncWriteExt;
-            tun.write_all(&packet.payload).await?;
+            use std::io::Write;
+            let mut tun = self.tun.lock().unwrap();
+            tun.write_all(&packet.payload)?;
         }
 
         Ok(())
