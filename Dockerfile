@@ -14,11 +14,12 @@ COPY crates/raft/Cargo.toml crates/raft/
 COPY daemon/Cargo.toml daemon/
 COPY client/Cargo.toml client/
 COPY cli/Cargo.toml cli/
+COPY tests/Cargo.toml tests/
 
 # Create dummy src files for dependency caching
 RUN mkdir -p crates/protocol/src crates/crypto/src crates/obfuscation/src \
     crates/transport/src crates/storage/src crates/raft/src \
-    daemon/src client/src cli/src && \
+    daemon/src client/src cli/src tests/src && \
     echo "fn main() {}" > daemon/src/main.rs && \
     echo "fn main() {}" > client/src/main.rs && \
     echo "fn main() {}" > cli/src/main.rs && \
@@ -27,7 +28,8 @@ RUN mkdir -p crates/protocol/src crates/crypto/src crates/obfuscation/src \
     echo "pub fn dummy() {}" > crates/obfuscation/src/lib.rs && \
     echo "pub fn dummy() {}" > crates/transport/src/lib.rs && \
     echo "pub fn dummy() {}" > crates/storage/src/lib.rs && \
-    echo "pub fn dummy() {}" > crates/raft/src/lib.rs
+    echo "pub fn dummy() {}" > crates/raft/src/lib.rs && \
+    echo "pub fn dummy() {}" > tests/src/lib.rs
 
 # Build dependencies only (cached layer)
 RUN cargo build --release --bin apfsdsd || true
@@ -37,6 +39,7 @@ COPY crates/ crates/
 COPY daemon/ daemon/
 COPY client/ client/
 COPY cli/ cli/
+COPY tests/ tests/
 
 # Touch to invalidate cache on source change
 RUN touch daemon/src/main.rs client/src/main.rs cli/src/main.rs
