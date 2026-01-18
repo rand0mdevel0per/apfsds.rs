@@ -13,8 +13,9 @@ target/
 .DS_Store
 Thumbs.db
 
-# Test artifacts
-tests/*.toml
+# Test artifacts (generated config files, not Cargo.toml)
+tests/*_test.toml
+tests/daemon_*.toml
 *.log
 
 # Local config files
