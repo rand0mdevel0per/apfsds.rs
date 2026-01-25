@@ -48,7 +48,7 @@ mod platform {
             tun_config.name(&config.name);
             tun_config.address(config.address);
             tun_config.netmask(config.netmask);
-            tun_config.mtu(config.mtu as i32);
+            tun_config.mtu(config.mtu);
             tun_config.up();
 
             let device = tun::create(&tun_config)?;
@@ -57,16 +57,14 @@ mod platform {
             Ok(Self { device })
         }
 
-        pub fn read(&self, buf: &mut [u8]) -> Result<usize> {
+        pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
             use std::io::Read;
-            let mut device = &self.device;
-            Ok(device.read(buf)?)
+            Ok(self.device.read(buf)?)
         }
 
-        pub fn write(&self, buf: &[u8]) -> Result<usize> {
+        pub fn write(&mut self, buf: &[u8]) -> Result<usize> {
             use std::io::Write;
-            let mut device = &self.device;
-            Ok(device.write(buf)?)
+            Ok(self.device.write(buf)?)
         }
     }
 }
