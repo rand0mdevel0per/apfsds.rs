@@ -3,15 +3,22 @@ FROM rust:latest AS builder
 
 WORKDIR /app
 
-# Install mold linker for faster linking
+# Install mold linker and sccache for faster compilation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     mold \
     clang \
-    && rm -rf /var/lib/apt/lists/*
+    wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && wget -q https://github.com/mozilla/sccache/releases/download/v0.7.4/sccache-v0.7.4-x86_64-unknown-linux-musl.tar.gz \
+    && tar xzf sccache-v0.7.4-x86_64-unknown-linux-musl.tar.gz \
+    && mv sccache-v0.7.4-x86_64-unknown-linux-musl/sccache /usr/local/bin/ \
+    && rm -rf sccache-v0.7.4-x86_64-unknown-linux-musl*
 
-# Configure Rust to use mold linker
+# Configure Rust to use mold linker and sccache
 ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold -C target-cpu=native"
 ENV CARGO_BUILD_JOBS=8
+ENV RUSTC_WRAPPER=sccache
+ENV SCCACHE_DIR=/sccache
 
 # Copy manifests first for layer caching
 COPY Cargo.toml Cargo.lock ./

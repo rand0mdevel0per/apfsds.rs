@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"e:\\\\apfsds\\\\.github\\\\workflows\"\" 2>/dev/null || echo \"Workflows directory not found \")",
+      "Bash(gh run list:*)"
+    ]
+  }
+}

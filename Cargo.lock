@@ -209,6 +209,7 @@ dependencies = [
  "bytes",
  "clap",
  "crates_io_api",
+ "crc32fast",
  "dashmap",
  "etherparse",
  "fastrand",

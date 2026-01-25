@@ -75,7 +75,7 @@ security:
   gracePeriod: 600  # 10 minutes
   
   emergency:
-    autoTriggerOnDNS: true
+    autoTriggerOnDNS: false
     dnsCheckDomain: "_emergency.example.com"
     checkInterval: 300
     triggerDelayRange: [0, 3600]
