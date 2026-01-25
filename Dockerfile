@@ -3,6 +3,16 @@ FROM rust:latest AS builder
 
 WORKDIR /app
 
+# Install mold linker for faster linking
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mold \
+    clang \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure Rust to use mold linker
+ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold -C target-cpu=native"
+ENV CARGO_BUILD_JOBS=8
+
 # Copy manifests first for layer caching
 COPY Cargo.toml Cargo.lock ./
 COPY crates/protocol/Cargo.toml crates/protocol/
@@ -32,7 +42,9 @@ RUN mkdir -p crates/protocol/src crates/crypto/src crates/obfuscation/src \
     echo "pub fn dummy() {}" > tests/src/lib.rs
 
 # Build dependencies only (cached layer)
-RUN cargo build --release --bin apfsdsd || true
+# Use fewer codegen units for dependencies to speed up linking
+RUN CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+    cargo build --release --bin apfsdsd || true
 
 # Copy actual source code
 COPY crates/ crates/
@@ -47,7 +59,9 @@ RUN touch daemon/src/main.rs client/src/main.rs cli/src/main.rs && \
     touch crates/transport/src/lib.rs crates/storage/src/lib.rs crates/raft/src/lib.rs
 
 # Build release binary (daemon only for deployment)
-RUN cargo build --release --bin apfsdsd
+# Optimize for faster compilation with parallel codegen
+RUN CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+    cargo build --release --bin apfsdsd
 
 # Runtime stage
 FROM debian:bookworm-slim
