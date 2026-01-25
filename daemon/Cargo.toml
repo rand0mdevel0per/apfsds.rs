@@ -17,6 +17,7 @@ apfsds-obfuscation = { path = "../crates/obfuscation", version = "0.2.0" }
 apfsds-storage = { path = "../crates/storage", version = "0.2.0" }
 apfsds-raft = { path = "../crates/raft", version = "0.2.0" }
 etherparse = "0.13"
+crc32fast = "1.4"
 
 tokio.workspace = true
 tokio-tungstenite.workspace = true
