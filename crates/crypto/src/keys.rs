@@ -1,9 +1,9 @@
 //! Ed25519, X25519, and ML-DSA-65 key management
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use pqcrypto_dilithium::dilithium3;
-use pqcrypto_traits::sign::{DetachedSignature, PublicKey, SecretKey};
+use ml_dsa::{KeyGen, MlDsa65};
 use rand::rngs::OsRng;
+use signature::{Signer as SigSigner, Verifier as SigVerifier};
 use thiserror::Error;
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
@@ -17,6 +17,12 @@ pub enum KeyError {
 
     #[error("Invalid signature format")]
     InvalidSignatureFormat,
+
+    #[error("Key deserialization failed: {0}")]
+    KeyDeserializationFailed(String),
+
+    #[error("Key serialization failed: {0}")]
+    KeySerializationFailed(String),
 }
 
 /// Ed25519 key pair for signing
@@ -74,47 +80,47 @@ impl Ed25519KeyPair {
 
 /// ML-DSA-65 (Dilithium3) key pair for post-quantum signatures
 pub struct MlDsa65KeyPair {
-    secret_key: dilithium3::SecretKey,
-    public_key: dilithium3::PublicKey,
+    keypair: ml_dsa::KeyPair<MlDsa65>,
 }
 
 impl MlDsa65KeyPair {
     /// Generate a new random key pair
     pub fn generate() -> Self {
-        let (pk, sk) = dilithium3::keypair();
-        Self {
-            secret_key: sk,
-            public_key: pk,
-        }
+        use rand::RngCore;
+        let mut seed = [0u8; 32];
+        OsRng.fill_bytes(&mut seed);
+        let keypair = MlDsa65::from_seed(&seed.into());
+        Self { keypair }
     }
 
-    /// Create from secret key bytes
-    ///
-    /// TODO: pqcrypto library doesn't support key deserialization.
-    /// For now, this generates a new keypair. In production, we need to either:
-    /// 1. Store both public and secret keys in config
-    /// 2. Use a different ML-DSA library that supports key serialization
-    /// 3. Implement custom key serialization
-    pub fn from_secret(_secret_bytes: &[u8]) -> Result<Self, KeyError> {
-        // Workaround: Generate a new keypair
-        // This is NOT secure for production use!
-        Ok(Self::generate())
+    /// Create from secret key bytes (32-byte seed)
+    pub fn from_secret(secret_bytes: &[u8]) -> Result<Self, KeyError> {
+        if secret_bytes.len() != 32 {
+            return Err(KeyError::InvalidKeyLength {
+                expected: 32,
+                actual: secret_bytes.len(),
+            });
+        }
+        let seed: [u8; 32] = secret_bytes.try_into().unwrap();
+        let keypair = MlDsa65::from_seed(&seed.into());
+        Ok(Self { keypair })
     }
 
     /// Get the public key bytes
     pub fn public_key(&self) -> Vec<u8> {
-        self.public_key.as_bytes().to_vec()
+        self.keypair.verifying_key().encode().to_vec()
     }
 
-    /// Get the secret key bytes
+    /// Get the secret key bytes (32-byte seed)
     pub fn secret_key(&self) -> Vec<u8> {
-        self.secret_key.as_bytes().to_vec()
+        self.keypair.to_seed().to_vec()
     }
 
     /// Sign a message (returns detached signature)
     pub fn sign(&self, message: &[u8]) -> Vec<u8> {
-        use pqcrypto_traits::sign::DetachedSignature as _;
-        dilithium3::detached_sign(message, &self.secret_key).as_bytes().to_vec()
+        let sig = self.keypair.signing_key().sign(message);
+        let encoded = sig.encode();
+        <[u8]>::to_vec(encoded.as_ref())
     }
 
     /// Verify a signature with public key
@@ -123,16 +129,25 @@ impl MlDsa65KeyPair {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), KeyError> {
-        let pk = dilithium3::PublicKey::from_bytes(pk_bytes)
-            .map_err(|_| KeyError::InvalidKeyLength {
-                expected: dilithium3::public_key_bytes(),
-                actual: pk_bytes.len(),
-            })?;
+        use ml_dsa::{Signature, VerifyingKey};
 
-        let sig = dilithium3::DetachedSignature::from_bytes(signature)
-            .map_err(|_| KeyError::InvalidSignatureFormat)?;
+        // Convert pk_bytes to EncodedVerifyingKey
+        let pk_array = pk_bytes.try_into().map_err(|_| KeyError::InvalidKeyLength {
+            expected: 1952, // ML-DSA-65 public key size
+            actual: pk_bytes.len(),
+        })?;
+        let verifying_key = VerifyingKey::<MlDsa65>::decode(pk_array);
 
-        dilithium3::verify_detached_signature(&sig, message, &pk)
+        // Convert signature bytes to EncodedSignature and decode
+        let sig_array = signature.try_into().map_err(|_| KeyError::InvalidKeyLength {
+            expected: 3309, // ML-DSA-65 signature size
+            actual: signature.len(),
+        })?;
+        let sig = Signature::<MlDsa65>::decode(sig_array)
+            .ok_or(KeyError::InvalidSignatureFormat)?;
+
+        verifying_key
+            .verify(message, &sig)
             .map_err(|_| KeyError::SignatureVerificationFailed)
     }
 }
