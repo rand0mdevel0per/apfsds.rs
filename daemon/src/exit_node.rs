@@ -14,7 +14,7 @@ use tracing::{debug, error, info, warn};
 use crate::config::DaemonConfig;
 use apfsds_protocol::PlainPacket;
 use bytes::Bytes;
-use futures::stream::StreamExt;
+use futures::{SinkExt, stream::StreamExt};
 use http_body_util::{BodyExt, Full, StreamBody}; // Need StreamBody
 use hyper::service::service_fn;
 use hyper::{Request, Response, body::Incoming};
@@ -252,6 +252,14 @@ impl ExitService {
 /// Run the exit node service
 pub async fn run(config: &DaemonConfig) -> Result<()> {
     info!("Initializing Exit Node Service...");
+
+    // Check if running in reverse connection mode
+    if config.server.reverse_mode {
+        info!("Running in reverse connection mode");
+        return run_reverse_mode(config).await;
+    }
+
+    // Traditional mode: exit-node as server
     let service = ExitService::new()?;
     info!("TUN interface up (10.200.0.1/16) [MOCK on Windows]");
 
@@ -334,4 +342,191 @@ fn fullempty() -> BoxBody {
     Full::new(Bytes::new())
         .map_err(|_| anyhow::anyhow!("never"))
         .boxed()
+}
+
+/// Run exit-node in reverse connection mode (client mode)
+async fn run_reverse_mode(config: &DaemonConfig) -> Result<()> {
+    let handler_endpoint = config
+        .server
+        .handler_endpoint
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("handler_endpoint not configured for reverse_mode"))?;
+
+    let node_name = config
+        .server
+        .location
+        .as_ref()
+        .map(|s| s.as_str())
+        .unwrap_or("exit-node");
+
+    let preferred_group_id = config.server.preferred_group_id;
+
+    info!(
+        "Connecting to handler at {} (name={}, preferred_group={:?})",
+        handler_endpoint, node_name, preferred_group_id
+    );
+
+    // Create ExitService for TUN interface
+    let service = ExitService::new()?;
+    info!("TUN interface up (10.200.0.1/16) [MOCK on Windows]");
+
+    // Connect to handler with retry logic
+    loop {
+        match connect_to_handler(handler_endpoint, node_name, preferred_group_id, service.clone()).await {
+            Ok(_) => {
+                info!("Connection to handler closed, reconnecting in 5s...");
+            }
+            Err(e) => {
+                error!("Failed to connect to handler: {}, retrying in 5s...", e);
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    }
+}
+
+/// Connect to handler and handle WebSocket communication
+async fn connect_to_handler(
+    handler_endpoint: &str,
+    node_name: &str,
+    preferred_group_id: Option<i32>,
+    service: Arc<ExitService>,
+) -> Result<()> {
+    use tokio_tungstenite::connect_async;
+
+    // Build WebSocket URL (no group_id - will be negotiated)
+    let ws_url = format!(
+        "ws://{}/exit-node/register?name={}",
+        handler_endpoint, node_name
+    );
+
+    info!("Connecting to {}", ws_url);
+
+    // Connect to handler
+    let (ws_stream, _) = connect_async(&ws_url).await?;
+    info!("Connected to handler successfully");
+
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+
+    // Wait for GroupList from handler
+    use apfsds_protocol::{ControlMessage, GroupInfo};
+
+    let selected_group_id = if let Some(group_id) = preferred_group_id {
+        // Use configured group_id
+        info!("Using configured group_id: {}", group_id);
+
+        // Still need to receive GroupList from handler (protocol requirement)
+        loop {
+            match ws_receiver.next().await {
+                Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(data))) => {
+                    if let Ok(msg) = rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data) {
+                        if let ControlMessage::GroupList { groups } = msg {
+                            info!("Received {} available groups from handler", groups.len());
+
+                            // Verify that configured group exists
+                            if groups.iter().any(|g| g.group_id == group_id) {
+                                info!("Configured group {} found in available groups", group_id);
+                                break group_id;
+                            } else {
+                                warn!("Configured group {} not found, falling back to auto-select", group_id);
+                                // Fall back to auto-select
+                                let selected = groups.iter()
+                                    .min_by_key(|g| g.load)
+                                    .ok_or_else(|| anyhow::anyhow!("No groups available"))?;
+                                info!("Auto-selected group {} ({}), load: {}%",
+                                    selected.group_id, selected.name, selected.load);
+                                break selected.group_id;
+                            }
+                        }
+                    }
+                }
+                Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) => {
+                    return Err(anyhow::anyhow!("Handler closed connection before sending groups"));
+                }
+                Some(Err(e)) => {
+                    return Err(anyhow::anyhow!("WebSocket error: {}", e));
+                }
+                None => {
+                    return Err(anyhow::anyhow!("Connection closed before receiving groups"));
+                }
+                _ => {}
+            }
+        }
+    } else {
+        // Auto-select group with lowest load
+        loop {
+            match ws_receiver.next().await {
+                Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(data))) => {
+                    if let Ok(msg) = rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data) {
+                        if let ControlMessage::GroupList { groups } = msg {
+                            info!("Received {} available groups from handler", groups.len());
+
+                            // Select group with lowest load
+                            let selected = groups.iter()
+                                .min_by_key(|g| g.load)
+                                .ok_or_else(|| anyhow::anyhow!("No groups available"))?;
+
+                            info!("Auto-selected group {} ({}), load: {}%",
+                                selected.group_id, selected.name, selected.load);
+
+                            break selected.group_id;
+                        }
+                    }
+                }
+                Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) => {
+                    return Err(anyhow::anyhow!("Handler closed connection before sending groups"));
+                }
+                Some(Err(e)) => {
+                    return Err(anyhow::anyhow!("WebSocket error: {}", e));
+                }
+                None => {
+                    return Err(anyhow::anyhow!("Connection closed before receiving groups"));
+                }
+                _ => {}
+            }
+        }
+    };
+
+    // Send group selection back to handler
+    let select_msg = ControlMessage::GroupSelect { group_id: selected_group_id };
+    if let Ok(msg_bytes) = rkyv::to_bytes::<rkyv::rancor::Error>(&select_msg) {
+        ws_sender.send(tokio_tungstenite::tungstenite::Message::Binary(msg_bytes.to_vec().into())).await?;
+        info!("Sent group selection to handler");
+    } else {
+        return Err(anyhow::anyhow!("Failed to serialize group selection"));
+    }
+
+    // Handle incoming messages from handler
+    while let Some(msg_result) = ws_receiver.next().await {
+        match msg_result {
+            Ok(tokio_tungstenite::tungstenite::Message::Binary(data)) => {
+                // Decode PlainPacket from handler
+                if let Ok(packet) = rkyv::from_bytes::<PlainPacket, rkyv::rancor::Error>(&data) {
+                    // Forward to TUN interface
+                    if let Err(e) = service.handle_forward(packet).await {
+                        error!("Failed to forward packet: {}", e);
+                    }
+                }
+            }
+            Ok(tokio_tungstenite::tungstenite::Message::Ping(data)) => {
+                if let Err(e) = ws_sender
+                    .send(tokio_tungstenite::tungstenite::Message::Pong(data))
+                    .await
+                {
+                    error!("Failed to send pong: {}", e);
+                    break;
+                }
+            }
+            Ok(tokio_tungstenite::tungstenite::Message::Close(_)) => {
+                info!("Handler closed connection");
+                break;
+            }
+            Err(e) => {
+                error!("WebSocket error: {}", e);
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }

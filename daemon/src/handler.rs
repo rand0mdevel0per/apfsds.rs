@@ -2,6 +2,7 @@
 
 use crate::config::DaemonConfig;
 use crate::exit_forwarder::ExitForwarder;
+use crate::exit_node_pool::ExitNodePool;
 use anyhow::Result;
 use apfsds_raft::RaftNode;
 use bytes::Bytes;
@@ -40,6 +41,7 @@ pub async fn run_handler(
     info!("Handler listening on {}", config.server.bind);
 
     let config = Arc::new(config.clone());
+    let exit_node_pool = Arc::new(ExitNodePool::new());
 
     loop {
         let (stream, addr) = listener.accept().await?;
@@ -51,6 +53,7 @@ pub async fn run_handler(
         let pg_client = pg_client.clone();
         let billing = billing.clone();
         let registry = registry.clone();
+        let exit_node_pool = exit_node_pool.clone();
 
         tokio::spawn(async move {
             let io = TokioIo::new(stream);
@@ -62,6 +65,7 @@ pub async fn run_handler(
                 let pg_client = pg_client.clone();
                 let billing = billing.clone();
                 let registry = registry.clone();
+                let exit_node_pool = exit_node_pool.clone();
                 async move {
                     handle_request(
                         req,
@@ -72,6 +76,7 @@ pub async fn run_handler(
                         pg_client,
                         billing,
                         registry,
+                        exit_node_pool,
                     )
                     .await
                 }
@@ -98,6 +103,7 @@ async fn handle_request(
     pg_client: PgClient,
     billing: Arc<BillingAggregator>,
     registry: Arc<ConnectionRegistry>,
+    exit_node_pool: Arc<ExitNodePool>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let path = req.uri().path();
     // trace!("Request from {}: {} {}", addr, req.method(), path);
@@ -107,6 +113,7 @@ async fn handle_request(
         "/connect" => {
             handle_connect(req, config, exit_forwarder, raft_node, billing, registry).await
         }
+        "/exit-node/register" => handle_exit_node_register(req, exit_node_pool).await,
         "/health" => handle_health().await,
         "/ready" => handle_ready().await,
         _ => handle_decoy(req, config).await,
@@ -654,6 +661,173 @@ async fn handle_reverse_proxy(
     };
 
     Ok(builder.body(Full::new(body)).unwrap())
+}
+
+/// Handle exit-node registration (reverse connection)
+async fn handle_exit_node_register(
+    req: Request<Incoming>,
+    exit_node_pool: Arc<ExitNodePool>,
+) -> Result<Response<Full<Bytes>>> {
+    // Check for WebSocket upgrade
+    let is_upgrade = req
+        .headers()
+        .get("upgrade")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.eq_ignore_ascii_case("websocket"))
+        .unwrap_or(false);
+
+    if !is_upgrade {
+        return Ok(Response::builder()
+            .status(400)
+            .body(Full::new(Bytes::from("Expected WebSocket upgrade")))
+            .unwrap());
+    }
+
+    // Parse query parameters for node info
+    let query = req.uri().query().unwrap_or("");
+    let params: std::collections::HashMap<String, String> = query
+        .split('&')
+        .filter_map(|pair| {
+            let mut parts = pair.split('=');
+            Some((parts.next()?.to_string(), parts.next()?.to_string()))
+        })
+        .collect();
+
+    let name = params.get("name").cloned().unwrap_or_else(|| "unknown".to_string());
+
+    info!("Exit-node registration request: name={}", name);
+
+    // Spawn WebSocket handler
+    tokio::task::spawn(async move {
+        match hyper::upgrade::on(req).await {
+            Ok(upgraded) => {
+                let ws_stream = match accept_async(TokioIo::new(upgraded)).await {
+                    Ok(ws) => ws,
+                    Err(e) => {
+                        error!("WS accept error for exit-node: {}", e);
+                        return;
+                    }
+                };
+
+                let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+
+                // Send available groups to exit-node
+                use apfsds_protocol::{ControlMessage, GroupInfo};
+
+                // TODO: Get groups from configuration or database
+                // For now, hardcode some example groups
+                let groups = vec![
+                    GroupInfo {
+                        group_id: 0,
+                        name: "Default".to_string(),
+                        node_count: exit_node_pool.get_group_nodes(0).len() as u32,
+                        load: 50,
+                    },
+                    GroupInfo {
+                        group_id: 1,
+                        name: "Premium".to_string(),
+                        node_count: exit_node_pool.get_group_nodes(1).len() as u32,
+                        load: 30,
+                    },
+                    GroupInfo {
+                        group_id: 2,
+                        name: "Asia".to_string(),
+                        node_count: exit_node_pool.get_group_nodes(2).len() as u32,
+                        load: 60,
+                    },
+                ];
+
+                let group_list_msg = ControlMessage::GroupList { groups };
+                if let Ok(msg_bytes) = rkyv::to_bytes::<rkyv::rancor::Error>(&group_list_msg) {
+                    if let Err(e) = ws_sender.send(Message::Binary(msg_bytes.to_vec().into())).await {
+                        error!("Failed to send group list to exit-node: {}", e);
+                        return;
+                    }
+                    info!("Sent group list to exit-node {}", name);
+                } else {
+                    error!("Failed to serialize group list");
+                    return;
+                }
+
+                // Wait for group selection from exit-node
+                let selected_group_id = loop {
+                    match ws_receiver.next().await {
+                        Some(Ok(Message::Binary(data))) => {
+                            if let Ok(msg) = rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data) {
+                                if let ControlMessage::GroupSelect { group_id } = msg {
+                                    info!("Exit-node {} selected group {}", name, group_id);
+                                    break group_id;
+                                }
+                            }
+                        }
+                        Some(Ok(Message::Close(_))) => {
+                            info!("Exit-node {} closed connection before selecting group", name);
+                            return;
+                        }
+                        Some(Err(e)) => {
+                            error!("WebSocket error while waiting for group selection: {}", e);
+                            return;
+                        }
+                        None => {
+                            error!("Connection closed before group selection");
+                            return;
+                        }
+                        _ => {}
+                    }
+                };
+
+                // Now register in pool with selected group
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let node_id = exit_node_pool.register(name.clone(), selected_group_id, tx);
+
+                // Spawn sender task
+                let sender_task = tokio::spawn(async move {
+                    let mut ws_sender = ws_sender;
+                    while let Some(msg) = rx.recv().await {
+                        if let Err(e) = ws_sender.send(msg).await {
+                            error!("Failed to send to exit-node {}: {}", node_id, e);
+                            break;
+                        }
+                    }
+                });
+
+                // Handle incoming messages from exit-node
+                while let Some(msg_result) = ws_receiver.next().await {
+                    match msg_result {
+                        Ok(Message::Binary(_data)) => {
+                            // TODO: Handle response from exit-node
+                            // This would be PlainPacket responses
+                        }
+                        Ok(Message::Ping(data)) => {
+                            if let Some(conn) = exit_node_pool.get(node_id) {
+                                let _ = conn.sender.send(Message::Pong(data));
+                            }
+                        }
+                        Ok(Message::Close(_)) => break,
+                        Err(e) => {
+                            error!("WS error from exit-node {}: {}", node_id, e);
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Cleanup
+                exit_node_pool.unregister(node_id);
+                let _ = sender_task.await;
+                info!("Exit-node {} disconnected", node_id);
+            }
+            Err(e) => error!("Upgrade error for exit-node: {}", e),
+        }
+    });
+
+    Ok(Response::builder()
+        .status(101)
+        .header("Upgrade", "websocket")
+        .header("Connection", "Upgrade")
+        .header("Sec-WebSocket-Accept", "exit-node-register")
+        .body(Full::new(Bytes::new()))
+        .unwrap())
 }
 
 /// Run as exit node (simple forwarder) is deprecated/moved, but kept stub if needed by old calls

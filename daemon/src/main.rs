@@ -10,6 +10,7 @@ mod connection_registry;
 mod emergency;
 mod exit_forwarder;
 mod exit_node;
+mod exit_node_pool;
 mod handler;
 mod key_rotation;
 mod metrics;

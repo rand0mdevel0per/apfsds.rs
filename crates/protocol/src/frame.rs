@@ -118,6 +118,20 @@ impl ProxyFrame {
     }
 }
 
+/// Proxy group information
+#[derive(Archive, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[rkyv(compare(PartialEq), derive(Debug))]
+pub struct GroupInfo {
+    /// Group ID
+    pub group_id: i32,
+    /// Group name/description
+    pub name: String,
+    /// Number of active nodes in this group
+    pub node_count: u32,
+    /// Average load (0-100)
+    pub load: u8,
+}
+
 /// Control frame types
 #[derive(Archive, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[rkyv(compare(PartialEq), derive(Debug))]
@@ -146,6 +160,12 @@ pub enum ControlMessage {
         level: EmergencyLevel,
         trigger_after: u64,
     },
+
+    /// Available proxy groups (handler -> exit-node)
+    GroupList { groups: Vec<GroupInfo> },
+
+    /// Group selection (exit-node -> handler)
+    GroupSelect { group_id: i32 },
 }
 
 /// Emergency level

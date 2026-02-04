@@ -161,6 +161,18 @@ pub struct ServerConfig {
     /// Maximum connections
     #[serde(default = "default_max_connections")]
     pub max_connections: usize,
+
+    /// Reverse connection mode (for exit-node without public IP)
+    #[serde(default)]
+    pub reverse_mode: bool,
+
+    /// Handler endpoint to connect to (used in reverse_mode)
+    #[serde(default)]
+    pub handler_endpoint: Option<String>,
+
+    /// Preferred group ID (used in reverse_mode, None = auto-select)
+    #[serde(default)]
+    pub preferred_group_id: Option<i32>,
 }
 
 fn default_mode() -> String {
@@ -182,6 +194,9 @@ impl Default for ServerConfig {
             bind: default_bind(),
             location: None,
             max_connections: default_max_connections(),
+            reverse_mode: false,
+            handler_endpoint: None,
+            preferred_group_id: None,
         }
     }
 }
