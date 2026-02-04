@@ -250,7 +250,7 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 
 ```bash
 # Fork and clone
-git clone https://github.com/YOUR_USERNAME/apfsds.rs.git
+git clone https://github.com/rand0mdevel0per/apfsds.rs.git
 
 # Create feature branch
 git checkout -b feature/amazing-feature
