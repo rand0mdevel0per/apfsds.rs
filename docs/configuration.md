@@ -21,6 +21,9 @@ The daemon is configured via `daemon.toml`. Below is a complete reference.
 bind = "0.0.0.0:25347"     # Listen address
 mode = "handler"            # "handler" or "exit"
 location = "US-East"        # Geographic location (optional)
+reverse_mode = false        # Enable reverse connection mode (exit-node only)
+handler_endpoint = "handler.example.com:25347"  # Handler to connect to (reverse mode)
+preferred_group_id = 1      # Preferred proxy group (optional, reverse mode)
 ```
 
 | Option | Type | Default | Description |
@@ -28,6 +31,9 @@ location = "US-East"        # Geographic location (optional)
 | `bind` | String | `0.0.0.0:25347` | Address to bind the main server |
 | `mode` | String | `handler` | Operating mode: `handler` (controller) or `exit` (egress) |
 | `location` | String | - | Geographic location for geo-routing |
+| `reverse_mode` | bool | `false` | Enable reverse connection mode (for exit-nodes without public IP) |
+| `handler_endpoint` | String | - | Handler endpoint to connect to (required when `reverse_mode = true`) |
+| `preferred_group_id` | i32 | - | Preferred proxy group ID (optional, auto-selects by load if not set) |
 
 ### Raft Section
 
@@ -225,13 +231,37 @@ node_id = 1
 
 See [Deployment Guide](deployment.md#3-node-cluster) for production cluster setup.
 
-### Exit Node
+### Exit Node (Traditional Mode)
 
 ```toml
 [server]
 bind = "0.0.0.0:25347"
 mode = "exit"
-
-[handler]
-upstream = "wss://handler.example.com:25347"
+location = "US-West"
 ```
+
+### Exit Node (Reverse Connection Mode)
+
+For exit-nodes without public IP addresses:
+
+```toml
+[server]
+mode = "exit"
+reverse_mode = true
+handler_endpoint = "handler.example.com:25347"
+location = "exit-node-us-1"
+
+# Option 1: Auto-select group by load (omit preferred_group_id)
+# The exit-node will automatically join the group with lowest load
+
+# Option 2: Manually specify group
+preferred_group_id = 1  # Join group 1 (Premium)
+```
+
+**Available Groups:**
+- `0`: Default group
+- `1`: Premium group
+- `2`: Asia group
+
+If the specified `preferred_group_id` doesn't exist, the exit-node will fall back to auto-selection.
+

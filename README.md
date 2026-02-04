@@ -20,11 +20,13 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🔐 **Multi-layer Encryption** | X25519 key exchange + AES-256-GCM + Ed25519 signatures |
+| 🔐 **Multi-layer Encryption** | X25519 key exchange + AES-256-GCM + ML-DSA-65 signatures |
 | 🚀 **Zero-copy Serialization** | `rkyv` for ultra-fast frame processing |
 | 📦 **Distributed Consensus** | Raft-based cluster with WAL persistence |
 | 🎭 **Traffic Obfuscation** | WSS masking, fake SSE/JSON, smart padding |
 | ⚡ **Split Architecture** | Handler ↔ Exit node separation |
+| 🔄 **Reverse Connection** | Exit-nodes without public IP can connect to handler |
+| 🎯 **Proxy Group Selection** | Auto-select or manually configure exit-node groups |
 | 🌐 **Multiple Transports** | WebSocket, QUIC, SSH tunneling |
 | 🚨 **Emergency Mode** | Remote kill-switch via crates.io |
 | 📊 **Observability** | Prometheus metrics, ClickHouse analytics |
@@ -154,10 +156,11 @@ open http://localhost:25348/
 
 ### Daemon (`daemon.toml`)
 
+**Handler Mode:**
 ```toml
 [server]
 bind = "0.0.0.0:25347"
-mode = "handler"  # or "exit"
+mode = "handler"
 
 [raft]
 node_id = 1
@@ -168,6 +171,23 @@ disk_path = "/var/lib/apfsds"
 
 [security]
 key_rotation_interval = 86400  # 24 hours
+```
+
+**Exit Node Mode (Traditional):**
+```toml
+[server]
+bind = "0.0.0.0:25347"
+mode = "exit"
+```
+
+**Exit Node Mode (Reverse Connection):**
+```toml
+[server]
+mode = "exit"
+reverse_mode = true
+handler_endpoint = "handler.example.com:25347"
+location = "exit-node-us-1"
+preferred_group_id = 1  # Optional: specify group, or auto-select by load
 ```
 
 ### Client (`client.toml`)
