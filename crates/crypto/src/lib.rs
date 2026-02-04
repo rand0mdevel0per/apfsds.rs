@@ -2,6 +2,7 @@
 //!
 //! This crate provides:
 //! - Ed25519 key generation and signing
+//! - ML-DSA-65 (Dilithium3) post-quantum signatures
 //! - X25519 ECDH key exchange
 //! - AES-256-GCM encryption/decryption
 //! - HMAC-SHA256 with constant-time comparison

@@ -384,6 +384,18 @@ pub struct SecurityConfig {
     /// Grace period for key rotation
     #[serde(default = "default_grace_period")]
     pub grace_period: u64,
+
+    /// Fallback target for unrecognized requests
+    #[serde(default = "default_fallback_target")]
+    pub fallback_target: String,
+
+    /// SNI to use for client connections (optional)
+    #[serde(default)]
+    pub client_sni: Option<String>,
+
+    /// Enable reverse proxy fallback (vs static HTML)
+    #[serde(default = "default_enable_reverse_proxy")]
+    pub enable_reverse_proxy: bool,
 }
 
 fn default_token_ttl() -> u64 {
@@ -398,6 +410,14 @@ fn default_grace_period() -> u64 {
     600 // 10 minutes
 }
 
+fn default_fallback_target() -> String {
+    "cn.bing.com".to_string()
+}
+
+fn default_enable_reverse_proxy() -> bool {
+    true
+}
+
 impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
@@ -406,6 +426,9 @@ impl Default for SecurityConfig {
             token_ttl: default_token_ttl(),
             key_rotation_interval: default_rotation_interval(),
             grace_period: default_grace_period(),
+            fallback_target: default_fallback_target(),
+            client_sni: None,
+            enable_reverse_proxy: default_enable_reverse_proxy(),
         }
     }
 }

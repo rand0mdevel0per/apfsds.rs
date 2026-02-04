@@ -32,6 +32,8 @@ toml = "0.8"
 aes-gcm = "0.10"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
+pqcrypto-dilithium = "0.5"
+pqcrypto-traits = "0.3"
 hmac = "0.12"
 sha2 = "0.10"
 rand = "0.8"

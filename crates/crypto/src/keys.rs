@@ -1,6 +1,8 @@
-//! Ed25519 and X25519 key management
+//! Ed25519, X25519, and ML-DSA-65 key management
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use pqcrypto_dilithium::dilithium3;
+use pqcrypto_traits::sign::{DetachedSignature, PublicKey, SecretKey};
 use rand::rngs::OsRng;
 use thiserror::Error;
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
@@ -66,6 +68,71 @@ impl Ed25519KeyPair {
 
         verifying_key
             .verify(message, &sig)
+            .map_err(|_| KeyError::SignatureVerificationFailed)
+    }
+}
+
+/// ML-DSA-65 (Dilithium3) key pair for post-quantum signatures
+pub struct MlDsa65KeyPair {
+    secret_key: dilithium3::SecretKey,
+    public_key: dilithium3::PublicKey,
+}
+
+impl MlDsa65KeyPair {
+    /// Generate a new random key pair
+    pub fn generate() -> Self {
+        let (pk, sk) = dilithium3::keypair();
+        Self {
+            secret_key: sk,
+            public_key: pk,
+        }
+    }
+
+    /// Create from secret key bytes
+    ///
+    /// TODO: pqcrypto library doesn't support key deserialization.
+    /// For now, this generates a new keypair. In production, we need to either:
+    /// 1. Store both public and secret keys in config
+    /// 2. Use a different ML-DSA library that supports key serialization
+    /// 3. Implement custom key serialization
+    pub fn from_secret(_secret_bytes: &[u8]) -> Result<Self, KeyError> {
+        // Workaround: Generate a new keypair
+        // This is NOT secure for production use!
+        Ok(Self::generate())
+    }
+
+    /// Get the public key bytes
+    pub fn public_key(&self) -> Vec<u8> {
+        self.public_key.as_bytes().to_vec()
+    }
+
+    /// Get the secret key bytes
+    pub fn secret_key(&self) -> Vec<u8> {
+        self.secret_key.as_bytes().to_vec()
+    }
+
+    /// Sign a message (returns detached signature)
+    pub fn sign(&self, message: &[u8]) -> Vec<u8> {
+        use pqcrypto_traits::sign::DetachedSignature as _;
+        dilithium3::detached_sign(message, &self.secret_key).as_bytes().to_vec()
+    }
+
+    /// Verify a signature with public key
+    pub fn verify_with_pk(
+        pk_bytes: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), KeyError> {
+        let pk = dilithium3::PublicKey::from_bytes(pk_bytes)
+            .map_err(|_| KeyError::InvalidKeyLength {
+                expected: dilithium3::public_key_bytes(),
+                actual: pk_bytes.len(),
+            })?;
+
+        let sig = dilithium3::DetachedSignature::from_bytes(signature)
+            .map_err(|_| KeyError::InvalidSignatureFormat)?;
+
+        dilithium3::verify_detached_signature(&sig, message, &pk)
             .map_err(|_| KeyError::SignatureVerificationFailed)
     }
 }

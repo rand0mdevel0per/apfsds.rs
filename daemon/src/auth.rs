@@ -1,10 +1,13 @@
 //! Authentication module
 
-use apfsds_crypto::{Ed25519KeyPair, HmacAuthenticator, ReplayCache, UuidReplayCache};
+use apfsds_crypto::{MlDsa65KeyPair, HmacAuthenticator, ReplayCache, UuidReplayCache};
 use apfsds_protocol::{AuthRequest, TokenPayload};
 use std::time::Duration;
 use thiserror::Error;
 use tracing::debug;
+
+/// ML-DSA-65 (Dilithium3) signature size in bytes
+const MLDSA65_SIGNATURE_SIZE: usize = 3293;
 
 #[derive(Error, Debug)]
 pub enum AuthError {
@@ -32,8 +35,8 @@ pub enum AuthError {
 
 /// Authenticator for handling client authentication
 pub struct Authenticator {
-    /// Server key pair
-    keypair: Ed25519KeyPair,
+    /// Server key pair (ML-DSA-65)
+    keypair: MlDsa65KeyPair,
 
     /// HMAC authenticator
     hmac: HmacAuthenticator,
@@ -53,19 +56,22 @@ pub struct Authenticator {
 
 impl Authenticator {
     /// Create a new authenticator
-    pub fn new(server_sk: [u8; 32], hmac_secret: [u8; 32], token_ttl_secs: u64) -> Self {
-        Self {
-            keypair: Ed25519KeyPair::from_secret(&server_sk),
+    pub fn new(server_sk: &[u8], hmac_secret: [u8; 32], token_ttl_secs: u64) -> Result<Self, AuthError> {
+        let keypair = MlDsa65KeyPair::from_secret(server_sk)
+            .map_err(|e| AuthError::CryptoError(e.to_string()))?;
+
+        Ok(Self {
+            keypair,
             hmac: HmacAuthenticator::new(hmac_secret),
             nonce_cache: ReplayCache::new(Duration::from_secs(120)),
             token_cache: UuidReplayCache::new(Duration::from_secs(token_ttl_secs + 60)),
             max_drift_ms: 30_000, // 30 seconds
             token_ttl_ms: token_ttl_secs * 1000,
-        }
+        })
     }
 
     /// Get the server public key
-    pub fn public_key(&self) -> [u8; 32] {
+    pub fn public_key(&self) -> Vec<u8> {
         self.keypair.public_key()
     }
 
@@ -134,17 +140,14 @@ impl Authenticator {
         let decoded = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, token)
             .map_err(|_| AuthError::InvalidSignature)?;
 
-        if decoded.len() < 64 {
+        if decoded.len() < MLDSA65_SIGNATURE_SIZE {
             return Err(AuthError::InvalidSignature);
         }
 
-        let (payload_bytes, signature) = decoded.split_at(decoded.len() - 64);
-        let signature: [u8; 64] = signature
-            .try_into()
-            .map_err(|_| AuthError::InvalidSignature)?;
+        let (payload_bytes, signature) = decoded.split_at(decoded.len() - MLDSA65_SIGNATURE_SIZE);
 
         // Verify signature
-        Ed25519KeyPair::verify_with_pk(&self.keypair.public_key(), payload_bytes, &signature)
+        MlDsa65KeyPair::verify_with_pk(&self.keypair.public_key(), payload_bytes, signature)
             .map_err(|_| AuthError::InvalidSignature)?;
 
         // Deserialize
@@ -199,9 +202,11 @@ mod tests {
     use super::*;
 
     fn create_auth() -> Authenticator {
-        let server_sk = [42u8; 32];
+        // Generate a proper ML-DSA-65 key pair for testing
+        let keypair = MlDsa65KeyPair::generate();
+        let server_sk = keypair.secret_key();
         let hmac_secret = [43u8; 32];
-        Authenticator::new(server_sk, hmac_secret, 60)
+        Authenticator::new(&server_sk, hmac_secret, 60).unwrap()
     }
 
     #[test]

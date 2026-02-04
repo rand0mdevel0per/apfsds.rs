@@ -109,7 +109,7 @@ async fn handle_request(
         }
         "/health" => handle_health().await,
         "/ready" => handle_ready().await,
-        _ => handle_decoy(req).await,
+        _ => handle_decoy(req, config).await,
     };
 
     match response {
@@ -268,7 +268,7 @@ async fn handle_retrieve_token(
 /// Handle WebSocket connect request
 async fn handle_connect(
     req: Request<Incoming>,
-    _config: &DaemonConfig,
+    config: &DaemonConfig,
     exit_forwarder: Arc<ExitForwarder>,
     raft_node: Arc<RaftNode>,
     billing: Arc<BillingAggregator>,
@@ -290,9 +290,54 @@ async fn handle_connect(
             .unwrap());
     }
 
-    // Auth (Stub) - Extract User/Group logic here
-    // For now assuming group 0.
-    let user_id = 1;
+    // Extract and verify token from Authorization header
+    let auth_header = req.headers()
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok());
+
+    let token = match auth_header {
+        Some(header) if header.starts_with("Bearer ") => {
+            &header[7..]  // Remove "Bearer " prefix
+        }
+        _ => {
+            return Ok(Response::builder()
+                .status(401)
+                .body(Full::new(Bytes::from("Unauthorized: Missing or invalid Authorization header")))
+                .unwrap());
+        }
+    };
+
+    // Create authenticator and verify token
+    let server_sk = config
+        .security
+        .server_sk
+        .as_ref()
+        .and_then(|s| hex::decode(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("Missing server secret key"))?;
+
+    let hmac_secret = config
+        .security
+        .hmac_secret
+        .as_ref()
+        .and_then(|s| hex::decode(s).ok())
+        .and_then(|v| <[u8; 32]>::try_from(v).ok())
+        .unwrap_or([43u8; 32]);
+
+    let authenticator = crate::auth::Authenticator::new(&server_sk, hmac_secret, config.security.token_ttl)
+        .map_err(|e| anyhow::anyhow!("Failed to create authenticator: {}", e))?;
+
+    let user_id = match authenticator.verify_and_consume_token(token.as_bytes()) {
+        Ok(uid) => uid,
+        Err(e) => {
+            debug!("Token verification failed: {}", e);
+            return Ok(Response::builder()
+                .status(401)
+                .body(Full::new(Bytes::from("Unauthorized: Invalid token")))
+                .unwrap());
+        }
+    };
+
+    // TODO: Get group_id from database based on user_id
     let group_id = 0;
 
     // Spawn WebSocket handler
@@ -446,7 +491,7 @@ async fn handle_connect(
                                     break;
                                 }
                                 billing
-                                    .record_usage(user_id, frame.payload.len() as u64)
+                                    .record_usage(user_id as i64, frame.payload.len() as u64)
                                     .await;
                             }
                         }
@@ -494,8 +539,13 @@ async fn handle_ready() -> Result<Response<Full<Bytes>>> {
 }
 
 /// Handle decoy traffic (return static/proxy responses)
-async fn handle_decoy(req: Request<Incoming>) -> Result<Response<Full<Bytes>>> {
-    let html = r#"<!DOCTYPE html>
+async fn handle_decoy(req: Request<Incoming>, config: &DaemonConfig) -> Result<Response<Full<Bytes>>> {
+    if config.security.enable_reverse_proxy {
+        // Reverse proxy to configured fallback target
+        handle_reverse_proxy(req, &config.security.fallback_target).await
+    } else {
+        // Return static HTML
+        let html = r#"<!DOCTYPE html>
 <html>
 <head><title>Welcome</title></head>
 <body>
@@ -504,11 +554,106 @@ async fn handle_decoy(req: Request<Incoming>) -> Result<Response<Full<Bytes>>> {
 </body>
 </html>"#;
 
-    Ok(Response::builder()
-        .status(200)
-        .header("Content-Type", "text/html")
-        .body(Full::new(Bytes::from(html)))
-        .unwrap())
+        Ok(Response::builder()
+            .status(200)
+            .header("Content-Type", "text/html")
+            .body(Full::new(Bytes::from(html)))
+            .unwrap())
+    }
+}
+
+/// Reverse proxy to target host
+async fn handle_reverse_proxy(
+    mut req: Request<Incoming>,
+    target: &str,
+) -> Result<Response<Full<Bytes>>> {
+    use http_body_util::BodyExt;
+
+    // Build target URL
+    let target_url = format!("https://{}{}", target, req.uri().path());
+
+    // Create a simple reqwest client for reverse proxy
+    let client = match reqwest::Client::builder()
+        .danger_accept_invalid_certs(false)
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Failed to create HTTP client: {}", e);
+            return Ok(Response::builder()
+                .status(502)
+                .body(Full::new(Bytes::from("Bad Gateway")))
+                .unwrap());
+        }
+    };
+
+    // Forward the request
+    let method = req.method().clone();
+    let headers = req.headers().clone();
+
+    // Read request body
+    let body_bytes = match req.into_body().collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(e) => {
+            error!("Failed to read request body: {}", e);
+            return Ok(Response::builder()
+                .status(400)
+                .body(Full::new(Bytes::from("Bad Request")))
+                .unwrap());
+        }
+    };
+
+    // Build reqwest request
+    let mut proxy_req = client.request(method, &target_url);
+
+    // Copy headers (skip Host header, will be set automatically)
+    for (name, value) in headers.iter() {
+        if name != "host" {
+            if let Ok(val) = value.to_str() {
+                proxy_req = proxy_req.header(name.as_str(), val);
+            }
+        }
+    }
+
+    // Add body if present
+    if !body_bytes.is_empty() {
+        proxy_req = proxy_req.body(body_bytes.to_vec());
+    }
+
+    // Send request
+    let response = match proxy_req.send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            error!("Proxy request failed: {}", e);
+            return Ok(Response::builder()
+                .status(502)
+                .body(Full::new(Bytes::from("Bad Gateway")))
+                .unwrap());
+        }
+    };
+
+    // Build response
+    let status = response.status();
+    let mut builder = Response::builder().status(status);
+
+    // Copy response headers
+    for (name, value) in response.headers().iter() {
+        builder = builder.header(name.as_str(), value.as_bytes());
+    }
+
+    // Read response body
+    let body = match response.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            error!("Failed to read response body: {}", e);
+            return Ok(Response::builder()
+                .status(502)
+                .body(Full::new(Bytes::from("Bad Gateway")))
+                .unwrap());
+        }
+    };
+
+    Ok(builder.body(Full::new(body)).unwrap())
 }
 
 /// Run as exit node (simple forwarder) is deprecated/moved, but kept stub if needed by old calls
