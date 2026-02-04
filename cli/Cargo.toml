@@ -1,6 +1,6 @@
 [package]
 name = "apfsds-cli"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "CLI tool for managing APFSDS distributed proxy network"
 license = "MIT"

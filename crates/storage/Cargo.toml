@@ -6,7 +6,7 @@ license.workspace = true
 description = "Persistent storage layer for APFSDS (WAL, ClickHouse, PostgreSQL)"
 
 [dependencies]
-apfsds-protocol = { path = "../protocol", version = "0.2.0" }
+apfsds-protocol = { path = "../protocol", version = "0.3.0" }
 
 tokio.workspace = true
 rkyv.workspace = true

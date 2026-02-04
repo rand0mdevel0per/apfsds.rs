@@ -6,8 +6,8 @@ license.workspace = true
 description = "Raft consensus layer for APFSDS distributed coordination"
 
 [dependencies]
-apfsds-protocol = { path = "../protocol", version = "0.2.0" }
-apfsds-storage = { path = "../storage", version = "0.2.0" }
+apfsds-protocol = { path = "../protocol", version = "0.3.0" }
+apfsds-storage = { path = "../storage", version = "0.3.0" }
 
 tokio.workspace = true
 serde.workspace = true
