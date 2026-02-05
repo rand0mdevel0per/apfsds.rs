@@ -1,6 +1,9 @@
 # Build stage
 FROM rust:latest AS builder
 
+# Get target architecture for multi-arch builds
+ARG TARGETARCH
+
 WORKDIR /app
 
 # Install mold linker and sccache for faster compilation
@@ -9,10 +12,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     clang \
     wget \
     && rm -rf /var/lib/apt/lists/* \
-    && wget -q https://github.com/mozilla/sccache/releases/download/v0.7.4/sccache-v0.7.4-x86_64-unknown-linux-musl.tar.gz \
-    && tar xzf sccache-v0.7.4-x86_64-unknown-linux-musl.tar.gz \
-    && mv sccache-v0.7.4-x86_64-unknown-linux-musl/sccache /usr/local/bin/ \
-    && rm -rf sccache-v0.7.4-x86_64-unknown-linux-musl*
+    && SCCACHE_ARCH=$(case ${TARGETARCH} in \
+        amd64) echo "x86_64" ;; \
+        arm64) echo "aarch64" ;; \
+        *) echo "x86_64" ;; \
+    esac) \
+    && wget -q https://github.com/mozilla/sccache/releases/download/v0.7.4/sccache-v0.7.4-${SCCACHE_ARCH}-unknown-linux-musl.tar.gz \
+    && tar xzf sccache-v0.7.4-${SCCACHE_ARCH}-unknown-linux-musl.tar.gz \
+    && mv sccache-v0.7.4-${SCCACHE_ARCH}-unknown-linux-musl/sccache /usr/local/bin/ \
+    && rm -rf sccache-v0.7.4-${SCCACHE_ARCH}-unknown-linux-musl*
 
 # Configure Rust to use mold linker and sccache
 ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold -C target-cpu=native"
