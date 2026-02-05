@@ -18,6 +18,62 @@ use tracing::{debug, info, trace};
 pub const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
     AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+/// Browser profile for fingerprint emulation
+#[derive(Debug, Clone)]
+pub struct BrowserProfile {
+    pub user_agent: String,
+    pub accept_language: String,
+    pub accept_encoding: String,
+    pub sec_fetch_site: String,
+    pub sec_fetch_mode: String,
+    pub sec_fetch_dest: String,
+    pub plugin_headers: Vec<(String, String)>,
+}
+
+impl Default for BrowserProfile {
+    fn default() -> Self {
+        Self::chrome_120_windows()
+    }
+}
+
+impl BrowserProfile {
+    /// Chrome 120 on Windows (default)
+    pub fn chrome_120_windows() -> Self {
+        Self {
+            user_agent: CHROME_UA.to_string(),
+            accept_language: "en-US,en;q=0.9".to_string(),
+            accept_encoding: "gzip, deflate, br".to_string(),
+            sec_fetch_site: "cross-site".to_string(),
+            sec_fetch_mode: "websocket".to_string(),
+            sec_fetch_dest: "empty".to_string(),
+            plugin_headers: Vec::new(),
+        }
+    }
+
+    /// Chrome 120 with AdBlock Plus
+    pub fn chrome_120_with_adblock() -> Self {
+        let mut profile = Self::chrome_120_windows();
+        profile.plugin_headers.push((
+            "X-Client-Data".to_string(),
+            "CIW2yQEIprbJAQjBtskBCKmdygEIlaHKAQiVocoBGI6jygE=".to_string(),
+        ));
+        profile
+    }
+
+    /// Chrome 120 on macOS
+    pub fn chrome_120_macos() -> Self {
+        Self {
+            user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36".to_string(),
+            accept_language: "en-US,en;q=0.9".to_string(),
+            accept_encoding: "gzip, deflate, br".to_string(),
+            sec_fetch_site: "cross-site".to_string(),
+            sec_fetch_mode: "websocket".to_string(),
+            sec_fetch_dest: "empty".to_string(),
+            plugin_headers: Vec::new(),
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum WssClientError {
     #[error("Connection failed: {0}")]
@@ -48,6 +104,18 @@ pub struct WssClientConfig {
     /// Authorization token
     pub token: Option<String>,
 
+    /// Browser profile for fingerprint emulation
+    pub browser_profile: BrowserProfile,
+
+    /// Cookies to send
+    pub cookies: Vec<(String, String)>,
+
+    /// Origin header (auto-generated from URL if None)
+    pub origin: Option<String>,
+
+    /// Referer header
+    pub referer: Option<String>,
+
     /// Custom headers
     pub headers: Vec<(String, String)>,
 
@@ -63,6 +131,10 @@ impl Default for WssClientConfig {
         Self {
             url: String::new(),
             token: None,
+            browser_profile: BrowserProfile::default(),
+            cookies: Vec::new(),
+            origin: None,
+            referer: None,
             headers: Vec::new(),
             compression: true,
             timeout_secs: 30,
@@ -107,17 +179,67 @@ impl WssClient {
             .map_err(|e| WssClientError::InvalidUrl(e.to_string()))?;
 
         let host = request.uri().host().unwrap_or("localhost").to_string();
+        let uri = request.uri().clone();
+
+        // Generate Origin if not provided
+        let origin = config.origin.clone().unwrap_or_else(|| {
+            let scheme = uri.scheme_str().unwrap_or("wss");
+            let origin_scheme = if scheme == "wss" { "https" } else { "http" };
+            format!("{}://{}", origin_scheme, host)
+        });
 
         let headers = request.headers_mut();
 
-        // Chrome-like headers (order matters for fingerprinting!)
+        // Chrome-like headers in correct order (order matters for fingerprinting!)
+
+        // 1. Host (already set by into_client_request, but ensure it's correct)
         headers.insert(header::HOST, host.parse().unwrap());
-        headers.insert(header::USER_AGENT, CHROME_UA.parse().unwrap());
-        headers.insert(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9".parse().unwrap());
+
+        // 2. Connection: Upgrade (set by WebSocket library)
+
+        // 3. Pragma & Cache-Control
+        headers.insert(header::PRAGMA, "no-cache".parse().unwrap());
+        headers.insert(header::CACHE_CONTROL, "no-cache".parse().unwrap());
+
+        // 4. User-Agent (from browser profile)
+        headers.insert(
+            header::USER_AGENT,
+            config.browser_profile.user_agent.parse().unwrap(),
+        );
+
+        // 5. Upgrade: websocket (set by WebSocket library)
+
+        // 6. Origin (critical for Chrome!)
+        headers.insert(header::ORIGIN, origin.parse().unwrap());
+
+        // 7. Sec-WebSocket-Version (set by WebSocket library)
+
+        // 8. Accept-Encoding (from browser profile)
         headers.insert(
             header::ACCEPT_ENCODING,
-            "gzip, deflate, br".parse().unwrap(),
+            config.browser_profile.accept_encoding.parse().unwrap(),
         );
+
+        // 9. Accept-Language (from browser profile)
+        headers.insert(
+            header::ACCEPT_LANGUAGE,
+            config.browser_profile.accept_language.parse().unwrap(),
+        );
+
+        // 10. Cookie (if provided)
+        if !config.cookies.is_empty() {
+            let cookie_str = config
+                .cookies
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect::<Vec<_>>()
+                .join("; ");
+            headers.insert(header::COOKIE, cookie_str.parse().unwrap());
+        }
+
+        // 11. Sec-WebSocket-Key (set by WebSocket library)
+
+        // 12. Sec-WebSocket-Extensions
         headers.insert(
             "Sec-WebSocket-Extensions",
             "permessage-deflate; client_max_window_bits"
@@ -125,7 +247,36 @@ impl WssClient {
                 .unwrap(),
         );
 
-        // Add authorization if token is provided
+        // 13. Sec-Fetch-* headers (Chrome 85+)
+        headers.insert(
+            "Sec-Fetch-Site",
+            config.browser_profile.sec_fetch_site.parse().unwrap(),
+        );
+        headers.insert(
+            "Sec-Fetch-Mode",
+            config.browser_profile.sec_fetch_mode.parse().unwrap(),
+        );
+        headers.insert(
+            "Sec-Fetch-Dest",
+            config.browser_profile.sec_fetch_dest.parse().unwrap(),
+        );
+
+        // 14. Referer (if provided)
+        if let Some(referer) = &config.referer {
+            headers.insert(header::REFERER, referer.parse().unwrap());
+        }
+
+        // 15. Plugin headers (e.g., X-Client-Data for Chrome with sync enabled)
+        for (key, value) in &config.browser_profile.plugin_headers {
+            if let (Ok(name), Ok(val)) = (
+                key.parse::<hyper::header::HeaderName>(),
+                value.parse::<hyper::header::HeaderValue>(),
+            ) {
+                headers.insert(name, val);
+            }
+        }
+
+        // 16. Authorization (if token is provided)
         if let Some(token) = &config.token {
             headers.insert(
                 header::AUTHORIZATION,
@@ -133,7 +284,7 @@ impl WssClient {
             );
         }
 
-        // Add custom headers
+        // 17. Custom headers (last, to allow overrides)
         for (key, value) in &config.headers {
             if let (Ok(name), Ok(val)) = (
                 key.parse::<hyper::header::HeaderName>(),

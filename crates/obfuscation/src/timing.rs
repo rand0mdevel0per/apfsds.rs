@@ -8,11 +8,32 @@ pub const DEFAULT_JITTER_MS: u64 = 50;
 /// Default inter-frame delay range in microseconds
 pub const DEFAULT_INTER_FRAME_DELAY_US: (u64, u64) = (100, 5000);
 
+/// Jitter strategy for timing randomization
+#[derive(Debug, Clone)]
+pub enum JitterStrategy {
+    /// Fixed range (uniform distribution)
+    Fixed { max_ms: u64 },
+    /// Normal distribution (more realistic)
+    Normal { mean_ms: f64, std_dev_ms: f64 },
+    /// Exponential distribution (models network delays)
+    Exponential { lambda: f64 },
+    /// Adaptive based on network conditions
+    Adaptive { base_ms: u64, factor: f64 },
+}
+
+impl Default for JitterStrategy {
+    fn default() -> Self {
+        Self::Fixed {
+            max_ms: DEFAULT_JITTER_MS,
+        }
+    }
+}
+
 /// Timing configuration
 #[derive(Debug, Clone)]
 pub struct TimingConfig {
-    /// Maximum jitter to add before sending (ms)
-    pub max_jitter_ms: u64,
+    /// Jitter strategy
+    pub jitter_strategy: JitterStrategy,
 
     /// Inter-frame delay range (us)
     pub inter_frame_delay: (u64, u64),
@@ -27,7 +48,7 @@ pub struct TimingConfig {
 impl Default for TimingConfig {
     fn default() -> Self {
         Self {
-            max_jitter_ms: DEFAULT_JITTER_MS,
+            jitter_strategy: JitterStrategy::default(),
             inter_frame_delay: DEFAULT_INTER_FRAME_DELAY_US,
             reconnect_interval: (60, 180),
             noise_interval: (10, 30),
@@ -38,7 +59,37 @@ impl Default for TimingConfig {
 impl TimingConfig {
     /// Generate a random jitter duration
     pub fn random_jitter(&self) -> Duration {
-        Duration::from_millis(fastrand::u64(0..=self.max_jitter_ms))
+        let jitter_ms = match &self.jitter_strategy {
+            JitterStrategy::Fixed { max_ms } => {
+                // Uniform distribution [0, max_ms]
+                fastrand::u64(0..=*max_ms)
+            }
+            JitterStrategy::Normal {
+                mean_ms,
+                std_dev_ms,
+            } => {
+                // Box-Muller transform for normal distribution
+                let u1 = fastrand::f64();
+                let u2 = fastrand::f64();
+                let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                let jitter = mean_ms + z * std_dev_ms;
+                jitter.max(0.0) as u64
+            }
+            JitterStrategy::Exponential { lambda } => {
+                // Exponential distribution
+                let u = fastrand::f64();
+                let jitter = -(1.0 / lambda) * u.ln();
+                (jitter * 1000.0).max(0.0) as u64
+            }
+            JitterStrategy::Adaptive { base_ms, factor } => {
+                // Adaptive jitter based on base and factor
+                // In real implementation, factor could be adjusted based on network RTT
+                let adaptive_max = (*base_ms as f64 * factor) as u64;
+                fastrand::u64(0..=adaptive_max)
+            }
+        };
+
+        Duration::from_millis(jitter_ms)
     }
 
     /// Generate a random inter-frame delay

@@ -189,6 +189,97 @@ impl X25519KeyPair {
     }
 }
 
+/// ML-KEM-768 (Kyber) key pair for post-quantum key exchange
+pub struct MlKem768KeyPair {
+    secret_key: Vec<u8>,
+    public_key: Vec<u8>,
+}
+
+impl MlKem768KeyPair {
+    /// Generate a new random key pair
+    pub fn generate() -> Self {
+        use ml_kem::{EncodedSizeUser, KemCore, MlKem768};
+
+        let mut rng = OsRng;
+        let (decapsulation_key, encapsulation_key) = MlKem768::generate(&mut rng);
+
+        Self {
+            secret_key: decapsulation_key.as_bytes().to_vec(),
+            public_key: encapsulation_key.as_bytes().to_vec(),
+        }
+    }
+
+    /// Get the public key bytes
+    pub fn public_key(&self) -> &[u8] {
+        &self.public_key
+    }
+
+    /// Get the secret key bytes
+    pub fn secret_key(&self) -> &[u8] {
+        &self.secret_key
+    }
+
+    /// Encapsulate: generate shared secret and ciphertext (for sender)
+    pub fn encapsulate(their_public_key: &[u8]) -> Result<(Vec<u8>, Vec<u8>), KeyError> {
+        use ::kem::Encapsulate;
+        use ml_kem::{EncodedSizeUser, MlKem768Params, kem::EncapsulationKey};
+
+        // Deserialize the public key
+        let encoded_key = their_public_key
+            .try_into()
+            .map_err(|_| KeyError::InvalidKeyLength {
+                expected: 1184,
+                actual: their_public_key.len(),
+            })?;
+        let encaps_key = EncapsulationKey::<MlKem768Params>::from_bytes(encoded_key);
+
+        // Encapsulate to generate shared secret and ciphertext
+        let mut rng = OsRng;
+        let (ct, shared_secret) = encaps_key
+            .encapsulate(&mut rng)
+            .map_err(|e| KeyError::KeySerializationFailed(format!("{:?}", e)))?;
+
+        // ct and shared_secret are Array types, convert directly to Vec
+        Ok((shared_secret.to_vec(), ct.to_vec()))
+    }
+
+    /// Decapsulate: recover shared secret from ciphertext (for receiver)
+    pub fn decapsulate(&self, ciphertext: &[u8]) -> Result<Vec<u8>, KeyError> {
+        use ::kem::Decapsulate;
+        use ml_kem::{
+            Ciphertext, EncodedSizeUser, MlKem768, MlKem768Params, kem::DecapsulationKey,
+        };
+
+        // Deserialize the secret key
+        let encoded_key =
+            self.secret_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| KeyError::InvalidKeyLength {
+                    expected: 2400,
+                    actual: self.secret_key.len(),
+                })?;
+        let decaps_key = DecapsulationKey::<MlKem768Params>::from_bytes(encoded_key);
+
+        // Deserialize the ciphertext (Ciphertext is parameterized by MlKem768, not MlKem768Params)
+        let ct: &Ciphertext<MlKem768> =
+            ciphertext
+                .try_into()
+                .map_err(|_| KeyError::InvalidKeyLength {
+                    expected: 1088,
+                    actual: ciphertext.len(),
+                })?;
+
+        // Decapsulate to recover shared secret
+        let shared_secret = decaps_key
+            .decapsulate(ct)
+            .map_err(|e| KeyError::KeyDeserializationFailed(format!("{:?}", e)))?;
+
+        // shared_secret is an Array type, convert directly to Vec
+        Ok(shared_secret.to_vec())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

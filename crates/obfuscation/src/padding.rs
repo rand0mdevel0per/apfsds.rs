@@ -13,12 +13,34 @@ const SIZE_DISTRIBUTION: &[(usize, f32)] = &[
 /// Maximum jitter percentage (±10%)
 const JITTER_PERCENT: usize = 10;
 
+/// Size distribution strategy
+#[derive(Debug, Clone)]
+pub enum SizeDistribution {
+    /// Fixed distribution (default)
+    Fixed(&'static [(usize, f32)]),
+    /// Learned from real traffic
+    Learned(Vec<(usize, f32)>),
+    /// Random within range
+    Random { min: usize, max: usize },
+    /// Normal distribution
+    Normal { mean: usize, std_dev: usize },
+}
+
+impl Default for SizeDistribution {
+    fn default() -> Self {
+        Self::Fixed(SIZE_DISTRIBUTION)
+    }
+}
+
 /// Padding strategy configuration
+#[derive(Debug, Clone)]
 pub struct PaddingStrategy {
     /// Enable random jitter
     pub jitter: bool,
     /// Minimum output size
     pub min_size: usize,
+    /// Size distribution strategy
+    pub size_distribution: SizeDistribution,
 }
 
 impl Default for PaddingStrategy {
@@ -26,6 +48,7 @@ impl Default for PaddingStrategy {
         Self {
             jitter: true,
             min_size: 64,
+            size_distribution: SizeDistribution::default(),
         }
     }
 }
@@ -41,17 +64,44 @@ impl PaddingStrategy {
         Self {
             jitter: false,
             min_size: 64,
+            size_distribution: SizeDistribution::default(),
         }
     }
 
     /// Calculate target size for padding
     pub fn calculate_target_size(&self, payload_len: usize) -> usize {
-        // Find the next target size
-        let base_target = SIZE_DISTRIBUTION
-            .iter()
-            .find(|(size, _)| *size > payload_len)
-            .map(|(size, _)| *size)
-            .unwrap_or(16384);
+        let base_target = match &self.size_distribution {
+            SizeDistribution::Fixed(dist) => {
+                // Find the next target size from fixed distribution
+                dist.iter()
+                    .find(|(size, _)| *size > payload_len)
+                    .map(|(size, _)| *size)
+                    .unwrap_or(16384)
+            }
+            SizeDistribution::Learned(dist) => {
+                // Use learned distribution (same logic as Fixed)
+                dist.iter()
+                    .find(|(size, _)| *size > payload_len)
+                    .map(|(size, _)| *size)
+                    .unwrap_or(16384)
+            }
+            SizeDistribution::Random { min, max } => {
+                // Random size within range
+                if payload_len >= *max {
+                    *max
+                } else {
+                    fastrand::usize(payload_len.max(*min)..*max)
+                }
+            }
+            SizeDistribution::Normal { mean, std_dev } => {
+                // Approximate normal distribution using Box-Muller transform
+                let u1 = fastrand::f64();
+                let u2 = fastrand::f64();
+                let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                let size = (*mean as f64 + z * (*std_dev as f64)).max(0.0) as usize;
+                size.max(payload_len)
+            }
+        };
 
         // Ensure minimum size
         let target = base_target.max(self.min_size);
