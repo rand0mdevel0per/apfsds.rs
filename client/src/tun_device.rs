@@ -45,7 +45,7 @@ mod platform {
     impl TunDevice {
         pub fn create(config: &TunConfig) -> Result<Self> {
             let mut tun_config = Configuration::default();
-            tun_config.name(&config.name);
+            tun_config.tun_name(&config.name);
             tun_config.address(config.address);
             tun_config.netmask(config.netmask);
             tun_config.mtu(config.mtu);

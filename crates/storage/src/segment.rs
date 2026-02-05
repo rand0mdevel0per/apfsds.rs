@@ -113,7 +113,7 @@ pub struct SegmentPtr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apfsds_protocol::{ConnMeta, StreamState};
+    use apfsds_protocol::ConnMeta;
 
     fn make_record(conn_id: u64) -> ConnRecord {
         ConnRecord {

@@ -46,7 +46,7 @@ impl WssSession {
         info!("Connecting to WSS upstream: {}", url);
         let (ws_stream, _) = connect_async(&url).await?;
 
-        let (mut tx, mut rx) = ws_stream.split();
+        let (tx, mut rx) = ws_stream.split();
 
         // Handshake: Expect 8-byte conn_id from server
         let handshake_msg = rx

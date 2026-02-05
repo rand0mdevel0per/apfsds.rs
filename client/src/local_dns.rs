@@ -36,10 +36,10 @@ pub async fn run(config: &ClientConfig) -> Result<()> {
                 let (wss_tx, mut wss_rx) = session.split();
 
                 let udp_socket_rx = udp_socket.clone();
-                let udp_socket_tx = udp_socket.clone(); // Needed if we implement reply mapping
+                let _udp_socket_tx = udp_socket.clone(); // Needed if we implement reply mapping
 
                 // UDP -> WSS
-                let udp_task = tokio::spawn(async move {
+                let _udp_task = tokio::spawn(async move {
                     let mut buf = [0u8; 4096];
 
                     loop {

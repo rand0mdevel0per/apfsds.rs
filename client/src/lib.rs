@@ -28,7 +28,7 @@ pub async fn run_tun(config: &config::ClientConfig) -> Result<()> {
         mtu: config.tun.mtu,
     };
     
-    let device = tun_device::TunDevice::create(&tun_config)?;
+    let mut device = tun_device::TunDevice::create(&tun_config)?;
     
     tracing::info!("TUN device started. Reading packets...");
     
