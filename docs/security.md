@@ -51,6 +51,12 @@ APFSDS is designed to resist the following adversary capabilities:
 
 ### Key Exchange
 
+**Post-Quantum Security:**
+1. **ML-KEM-768 (Kyber)**: Post-quantum key encapsulation mechanism
+2. **Hybrid Mode**: ML-KEM-768 + X25519 for defense-in-depth
+3. **Forward Secrecy**: Fresh ephemeral keys per session
+
+**Classical Fallback:**
 1. **Ephemeral X25519**: Each session generates fresh keypairs
 2. **ECDH**: Shared secret derived from curve25519
 3. **HKDF**: Key derivation for symmetric keys
@@ -74,9 +80,10 @@ Client                           Server
 
 | Layer | Algorithm | Purpose |
 |-------|-----------|---------|
-| Key Exchange | X25519 | Forward secrecy |
+| Key Exchange (PQ) | ML-KEM-768 | Post-quantum key encapsulation |
+| Key Exchange | X25519 | Forward secrecy (classical) |
 | Payload | AES-256-GCM | Authenticated encryption |
-| Signing | Ed25519 | Identity verification |
+| Signing | Ed25519 / ML-DSA-65 | Identity verification |
 | MAC | HMAC-SHA256 | Token integrity |
 
 ### Forward Secrecy
@@ -239,6 +246,6 @@ iptables -A OUTPUT -j ACCEPT  # Egress allowed
 
 ## Vulnerability Disclosure
 
-Report security issues to: security@example.com
+Report security issues to: rand0mk4cas@gmail.com
 
 We follow responsible disclosure practices and aim to respond within 48 hours.

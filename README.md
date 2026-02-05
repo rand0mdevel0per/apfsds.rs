@@ -20,10 +20,10 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🔐 **Multi-layer Encryption** | X25519 key exchange + AES-256-GCM + ML-DSA-65 signatures |
+| 🔐 **Multi-layer Encryption** | ML-KEM-768 (post-quantum) + X25519 + AES-256-GCM + ML-DSA-65 signatures |
 | 🚀 **Zero-copy Serialization** | `rkyv` for ultra-fast frame processing |
 | 📦 **Distributed Consensus** | Raft-based cluster with WAL persistence |
-| 🎭 **Traffic Obfuscation** | WSS masking, fake SSE/JSON, smart padding |
+| 🎭 **Traffic Obfuscation** | Chrome fingerprinting, configurable padding/jitter, decoy traffic |
 | ⚡ **Split Architecture** | Handler ↔ Exit node separation |
 | 🔄 **Reverse Connection** | Exit-nodes without public IP can connect to handler |
 | 🎯 **Proxy Group Selection** | Auto-select or manually configure exit-node groups |
