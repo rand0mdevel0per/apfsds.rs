@@ -11,12 +11,12 @@ mod emergency;
 mod exit_forwarder;
 mod exit_node;
 mod exit_node_pool;
+mod geoip;
 mod handler;
 mod key_rotation;
+mod management;
 mod metrics;
 mod noise;
-mod geoip;
-mod management;
 mod plugin;
 
 use anyhow::Result;
@@ -121,9 +121,11 @@ async fn main() -> Result<()> {
     let mgmt_config = Arc::new(config.clone());
     let mgmt_registry = registry.clone();
     let mgmt_raft = raft_node.clone();
-    
+
     tokio::spawn(async move {
-        if let Err(e) = management::start_server(mgmt_bind, mgmt_config, mgmt_registry, mgmt_raft).await {
+        if let Err(e) =
+            management::start_server(mgmt_bind, mgmt_config, mgmt_registry, mgmt_raft).await
+        {
             tracing::error!("Management API error: {}", e);
         }
     });
@@ -173,10 +175,10 @@ async fn main() -> Result<()> {
 
         // Add peers from config
         if let Some(raft) = &raft_node {
-             for peer in &config.raft.peers {
+            for peer in &config.raft.peers {
                 info!("Configuring Raft peer: {}", peer);
                 // In real impl, we might add them to the raft node here
-             }
+            }
         }
 
         info!("Starting as handler on {}", config.server.bind);

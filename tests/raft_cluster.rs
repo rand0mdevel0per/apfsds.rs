@@ -4,12 +4,17 @@
 
 mod integration_harness;
 
-use integration_harness::{cleanup, wait_for_port, TestConfig};
+use integration_harness::{TestConfig, cleanup, wait_for_port};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 /// Spawn a daemon with specific Raft configuration
-fn spawn_raft_node(node_id: u64, bind_port: u16, mgmt_port: u16, peers: &[String]) -> std::io::Result<Child> {
+fn spawn_raft_node(
+    node_id: u64,
+    bind_port: u16,
+    mgmt_port: u16,
+    peers: &[String],
+) -> std::io::Result<Child> {
     let peers_str = peers
         .iter()
         .map(|p| format!("\"{}\"", p))
@@ -37,14 +42,7 @@ prometheus_enabled = false
     std::fs::write(&config_path, config_content)?;
 
     Command::new("cargo")
-        .args([
-            "run",
-            "-p",
-            "apfsds-daemon",
-            "--",
-            "--config",
-            &config_path,
-        ])
+        .args(["run", "-p", "apfsds-daemon", "--", "--config", &config_path])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

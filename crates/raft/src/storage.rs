@@ -103,7 +103,10 @@ impl RaftStorage<ClientRequest, ClientResponse> for PersistentStorage {
     async fn save_hard_state(&self, hs: &HardState) -> Result<()> {
         *self.hard_state.write().await = hs.clone();
         // Persist HardState to WAL with special marker
-        let marker = format!("__HARDSTATE__:{}", serde_json::to_string(hs).unwrap_or_default());
+        let marker = format!(
+            "__HARDSTATE__:{}",
+            serde_json::to_string(hs).unwrap_or_default()
+        );
         let _ = self.wal.append(marker.as_bytes());
         let _ = self.wal.sync();
         Ok(())

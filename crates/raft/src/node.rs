@@ -54,8 +54,14 @@ impl RaftNode {
     }
 
     /// Change cluster membership
-    pub async fn change_membership(&self, members: std::collections::HashSet<NodeId>) -> anyhow::Result<()> {
-        self.raft.change_membership(members).await.map_err(|e| anyhow::anyhow!("Raft membership error: {:?}", e))
+    pub async fn change_membership(
+        &self,
+        members: std::collections::HashSet<NodeId>,
+    ) -> anyhow::Result<()> {
+        self.raft
+            .change_membership(members)
+            .await
+            .map_err(|e| anyhow::anyhow!("Raft membership error: {:?}", e))
     }
 
     /// Get Raft metrics

@@ -46,7 +46,7 @@ impl DaemonConfig {
     }
 
     /// Load and merge configuration from file (incremental update)
-    /// 
+    ///
     /// Only non-default values from the new config will overwrite existing values.
     /// Lists (like exit_nodes) will be merged by name/endpoint.
     pub async fn load_merge(&mut self, path: impl AsRef<Path>) -> Result<()> {
@@ -57,7 +57,7 @@ impl DaemonConfig {
     }
 
     /// Merge another config into this one (incremental)
-    /// 
+    ///
     /// Rules:
     /// - Scalar values: overwrite if the new value differs from default
     /// - Option values: overwrite if Some
@@ -564,11 +564,19 @@ mod tests {
         config.merge(other);
 
         assert_eq!(config.exit_nodes.len(), 2);
-        
-        let n1 = config.exit_nodes.iter().find(|n| n.name == "node1").unwrap();
+
+        let n1 = config
+            .exit_nodes
+            .iter()
+            .find(|n| n.name == "node1")
+            .unwrap();
         assert_eq!(n1.endpoint, "2.2.2.2");
 
-        let n2 = config.exit_nodes.iter().find(|n| n.name == "node2").unwrap();
+        let n2 = config
+            .exit_nodes
+            .iter()
+            .find(|n| n.name == "node2")
+            .unwrap();
         assert_eq!(n2.endpoint, "3.3.3.3");
     }
 

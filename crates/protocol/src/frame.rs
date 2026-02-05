@@ -1,6 +1,5 @@
 //! ProxyFrame - The core data transmission unit
 
-
 use rkyv::{Archive, Deserialize, Serialize};
 
 /// Proxy frame - the fundamental unit of all data transmission

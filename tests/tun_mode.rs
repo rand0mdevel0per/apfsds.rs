@@ -5,7 +5,7 @@
 
 mod integration_harness;
 
-use integration_harness::{cleanup, spawn_daemon, wait_for_port, TestConfig};
+use integration_harness::{TestConfig, cleanup, spawn_daemon, wait_for_port};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
@@ -57,7 +57,9 @@ async fn test_tun_device_creation() {
             "target\\release\\wintun.dll",
         ];
 
-        let found = wintun_paths.iter().any(|p| std::path::Path::new(p).exists());
+        let found = wintun_paths
+            .iter()
+            .any(|p| std::path::Path::new(p).exists());
 
         if found {
             println!("wintun.dll found - TUN support available");

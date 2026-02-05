@@ -3,6 +3,7 @@
 use crate::config::DaemonConfig;
 use crate::exit_forwarder::ExitForwarder;
 use crate::exit_node_pool::ExitNodePool;
+use crate::metrics::Metrics;
 use anyhow::Result;
 use apfsds_raft::RaftNode;
 use bytes::Bytes;
@@ -13,12 +14,11 @@ use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use tracing::{debug, error, info};
-use std::sync::LazyLock;
-use crate::metrics::Metrics;
 
 /// Global metrics instance
 static METRICS: LazyLock<Metrics> = LazyLock::new(Metrics::new);
@@ -298,18 +298,21 @@ async fn handle_connect(
     }
 
     // Extract and verify token from Authorization header
-    let auth_header = req.headers()
+    let auth_header = req
+        .headers()
         .get("Authorization")
         .and_then(|v| v.to_str().ok());
 
     let token = match auth_header {
         Some(header) if header.starts_with("Bearer ") => {
-            &header[7..]  // Remove "Bearer " prefix
+            &header[7..] // Remove "Bearer " prefix
         }
         _ => {
             return Ok(Response::builder()
                 .status(401)
-                .body(Full::new(Bytes::from("Unauthorized: Missing or invalid Authorization header")))
+                .body(Full::new(Bytes::from(
+                    "Unauthorized: Missing or invalid Authorization header",
+                )))
                 .unwrap());
         }
     };
@@ -330,8 +333,9 @@ async fn handle_connect(
         .and_then(|v| <[u8; 32]>::try_from(v).ok())
         .unwrap_or([43u8; 32]);
 
-    let authenticator = crate::auth::Authenticator::new(&server_sk, hmac_secret, config.security.token_ttl)
-        .map_err(|e| anyhow::anyhow!("Failed to create authenticator: {}", e))?;
+    let authenticator =
+        crate::auth::Authenticator::new(&server_sk, hmac_secret, config.security.token_ttl)
+            .map_err(|e| anyhow::anyhow!("Failed to create authenticator: {}", e))?;
 
     let user_id = match authenticator.verify_and_consume_token(token.as_bytes()) {
         Ok(uid) => uid,
@@ -457,7 +461,7 @@ async fn handle_connect(
                         Ok(Message::Binary(data)) => {
                             METRICS.frames_received.inc();
                             METRICS.frame_size.observe(data.len() as f64);
-                            
+
                             // De-obfuscate
                             let unmasked = xor_mask.apply(&data);
                             let unpadded = match PaddingStrategy::unpad(&unmasked) {
@@ -546,7 +550,10 @@ async fn handle_ready() -> Result<Response<Full<Bytes>>> {
 }
 
 /// Handle decoy traffic (return static/proxy responses)
-async fn handle_decoy(req: Request<Incoming>, config: &DaemonConfig) -> Result<Response<Full<Bytes>>> {
+async fn handle_decoy(
+    req: Request<Incoming>,
+    config: &DaemonConfig,
+) -> Result<Response<Full<Bytes>>> {
     if config.security.enable_reverse_proxy {
         // Reverse proxy to configured fallback target
         handle_reverse_proxy(req, &config.security.fallback_target).await
@@ -693,7 +700,10 @@ async fn handle_exit_node_register(
         })
         .collect();
 
-    let name = params.get("name").cloned().unwrap_or_else(|| "unknown".to_string());
+    let name = params
+        .get("name")
+        .cloned()
+        .unwrap_or_else(|| "unknown".to_string());
 
     info!("Exit-node registration request: name={}", name);
 
@@ -739,7 +749,10 @@ async fn handle_exit_node_register(
 
                 let group_list_msg = ControlMessage::GroupList { groups };
                 if let Ok(msg_bytes) = rkyv::to_bytes::<rkyv::rancor::Error>(&group_list_msg) {
-                    if let Err(e) = ws_sender.send(Message::Binary(msg_bytes.to_vec().into())).await {
+                    if let Err(e) = ws_sender
+                        .send(Message::Binary(msg_bytes.to_vec().into()))
+                        .await
+                    {
                         error!("Failed to send group list to exit-node: {}", e);
                         return;
                     }
@@ -753,7 +766,9 @@ async fn handle_exit_node_register(
                 let selected_group_id = loop {
                     match ws_receiver.next().await {
                         Some(Ok(Message::Binary(data))) => {
-                            if let Ok(msg) = rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data) {
+                            if let Ok(msg) =
+                                rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data)
+                            {
                                 if let ControlMessage::GroupSelect { group_id } = msg {
                                     info!("Exit-node {} selected group {}", name, group_id);
                                     break group_id;
@@ -761,7 +776,10 @@ async fn handle_exit_node_register(
                             }
                         }
                         Some(Ok(Message::Close(_))) => {
-                            info!("Exit-node {} closed connection before selecting group", name);
+                            info!(
+                                "Exit-node {} closed connection before selecting group",
+                                name
+                            );
                             return;
                         }
                         Some(Err(e)) => {

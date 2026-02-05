@@ -1,6 +1,6 @@
 //! Authentication module
 
-use apfsds_crypto::{MlDsa65KeyPair, HmacAuthenticator, ReplayCache, UuidReplayCache};
+use apfsds_crypto::{HmacAuthenticator, MlDsa65KeyPair, ReplayCache, UuidReplayCache};
 use apfsds_protocol::{AuthRequest, TokenPayload};
 use std::time::Duration;
 use thiserror::Error;
@@ -56,7 +56,11 @@ pub struct Authenticator {
 
 impl Authenticator {
     /// Create a new authenticator
-    pub fn new(server_sk: &[u8], hmac_secret: [u8; 32], token_ttl_secs: u64) -> Result<Self, AuthError> {
+    pub fn new(
+        server_sk: &[u8],
+        hmac_secret: [u8; 32],
+        token_ttl_secs: u64,
+    ) -> Result<Self, AuthError> {
         let keypair = MlDsa65KeyPair::from_secret(server_sk)
             .map_err(|e| AuthError::CryptoError(e.to_string()))?;
 

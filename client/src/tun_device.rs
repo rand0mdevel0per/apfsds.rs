@@ -36,7 +36,7 @@ impl Default for TunConfig {
 #[cfg(target_os = "linux")]
 mod platform {
     use super::*;
-    use tun::{Device, Configuration};
+    use tun::{Configuration, Device};
 
     pub struct TunDevice {
         device: Device,
@@ -85,22 +85,22 @@ mod platform {
         pub fn create(config: &TunConfig) -> Result<Self> {
             // Load wintun.dll (must be in PATH or current directory)
             let wintun = unsafe { wintun::load()? };
-            
+
             // Create adapter (returns Arc<Adapter>)
             let adapter = Adapter::create(&wintun, &config.name, "APFSDS", None)?;
-            
+
             // Start session and wrap in Arc for API calls
             let session = Arc::new(adapter.start_session(wintun::MAX_RING_CAPACITY)?);
-            
+
             // Set IP address (requires netsh or SetUnicastIpAddressEntry)
             // For now, log a warning that manual config is needed
             tracing::warn!(
                 "Windows TUN created. Please configure IP {} via netsh or Windows settings.",
                 config.address
             );
-            
+
             info!("Created TUN device {} on Windows", config.name);
-            
+
             Ok(Self {
                 _adapter: adapter,
                 session,
@@ -139,7 +139,9 @@ mod platform {
 
     impl TunDevice {
         pub fn create(_config: &TunConfig) -> Result<Self> {
-            Err(anyhow::anyhow!("TUN devices not supported on this platform"))
+            Err(anyhow::anyhow!(
+                "TUN devices not supported on this platform"
+            ))
         }
 
         pub fn read(&self, _buf: &mut [u8]) -> Result<usize> {

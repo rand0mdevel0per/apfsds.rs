@@ -76,15 +76,15 @@ impl ExitNodePool {
     /// Unregister an exit-node
     pub fn unregister(&self, node_id: u64) {
         if let Some((_, conn)) = self.connections.remove(&node_id) {
-            info!(
-                "Exit-node unregistered: id={}, name={}",
-                node_id, conn.name
-            );
+            info!("Exit-node unregistered: id={}, name={}", node_id, conn.name);
         }
     }
 
     /// Get exit-node by ID
-    pub fn get(&self, node_id: u64) -> Option<dashmap::mapref::one::Ref<'_, u64, ExitNodeConnection>> {
+    pub fn get(
+        &self,
+        node_id: u64,
+    ) -> Option<dashmap::mapref::one::Ref<'_, u64, ExitNodeConnection>> {
         self.connections.get(&node_id)
     }
 

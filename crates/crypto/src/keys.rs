@@ -132,19 +132,23 @@ impl MlDsa65KeyPair {
         use ml_dsa::{Signature, VerifyingKey};
 
         // Convert pk_bytes to EncodedVerifyingKey
-        let pk_array = pk_bytes.try_into().map_err(|_| KeyError::InvalidKeyLength {
-            expected: 1952, // ML-DSA-65 public key size
-            actual: pk_bytes.len(),
-        })?;
+        let pk_array = pk_bytes
+            .try_into()
+            .map_err(|_| KeyError::InvalidKeyLength {
+                expected: 1952, // ML-DSA-65 public key size
+                actual: pk_bytes.len(),
+            })?;
         let verifying_key = VerifyingKey::<MlDsa65>::decode(pk_array);
 
         // Convert signature bytes to EncodedSignature and decode
-        let sig_array = signature.try_into().map_err(|_| KeyError::InvalidKeyLength {
-            expected: 3309, // ML-DSA-65 signature size
-            actual: signature.len(),
-        })?;
-        let sig = Signature::<MlDsa65>::decode(sig_array)
-            .ok_or(KeyError::InvalidSignatureFormat)?;
+        let sig_array = signature
+            .try_into()
+            .map_err(|_| KeyError::InvalidKeyLength {
+                expected: 3309, // ML-DSA-65 signature size
+                actual: signature.len(),
+            })?;
+        let sig =
+            Signature::<MlDsa65>::decode(sig_array).ok_or(KeyError::InvalidSignatureFormat)?;
 
         verifying_key
             .verify(message, &sig)

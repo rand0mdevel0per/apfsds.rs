@@ -5,7 +5,7 @@
 use anyhow::Result;
 use std::path::Path;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -48,28 +48,29 @@ impl PluginManager {
                 let server = ServerOptions::new()
                     .first_pipe_instance(true)
                     .create(&self.socket_path)?;
-                
+
                 // Wait for connection
                 if let Err(e) = server.connect().await {
                     error!("Named pipe connect error: {}", e);
                     continue;
                 }
-                
+
                 tokio::spawn(handle_connection(server));
-                
-                // For simplified named pipe server loop, we need to recreate/loop. 
+
+                // For simplified named pipe server loop, we need to recreate/loop.
                 // In a real implementation this would use a loop with multiple instances.
                 // This stub is single-threaded accept for demo.
             }
         }
-        
+
         #[allow(unreachable_code)]
         Ok(())
     }
 }
 
-async fn handle_connection<S>(mut stream: S) 
-where S: AsyncRead + AsyncWrite + Unpin + Send + 'static 
+async fn handle_connection<S>(mut stream: S)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     info!("Plugin connected");
     // Handshake and protocol loop would go here

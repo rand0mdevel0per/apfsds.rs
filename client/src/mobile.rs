@@ -2,9 +2,9 @@
 //!
 //! Provides C-compatible entry points for iOS/Android.
 
+use crate::config::ClientConfig;
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use crate::config::ClientConfig;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn apfsds_mobile_start(config_path: *const c_char) -> i32 {
@@ -14,7 +14,7 @@ pub unsafe extern "C" fn apfsds_mobile_start(config_path: *const c_char) -> i32 
         }
         CStr::from_ptr(config_path)
     };
-    
+
     // In a real app we would start the runtime here.
     // For now stub returns success.
     0

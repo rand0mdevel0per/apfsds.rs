@@ -4,11 +4,11 @@
 //! Used for Handler <-> Exit Node communication as an alternative to HTTP/2.
 
 use anyhow::{Result, anyhow};
-use quinn::{Endpoint, ClientConfig, ServerConfig, Connection};
+use quinn::{ClientConfig, Connection, Endpoint, ServerConfig};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
 /// QUIC Transport Configuration
 #[derive(Debug, Clone)]
@@ -45,7 +45,7 @@ impl QuicClient {
         };
 
         let client_config = ClientConfig::new(Arc::new(
-            quinn::crypto::rustls::QuicClientConfig::try_from(client_crypto)?
+            quinn::crypto::rustls::QuicClientConfig::try_from(client_crypto)?,
         ));
 
         let mut endpoint = Endpoint::client(bind)?;
@@ -55,7 +55,11 @@ impl QuicClient {
     }
 
     /// Connect to a QUIC server
-    pub async fn connect(&self, server_addr: SocketAddr, server_name: &str) -> Result<QuicConnection> {
+    pub async fn connect(
+        &self,
+        server_addr: SocketAddr,
+        server_name: &str,
+    ) -> Result<QuicConnection> {
         let connection = self.endpoint.connect(server_addr, server_name)?.await?;
         info!("QUIC connected to {}", server_addr);
         Ok(QuicConnection { connection })
@@ -79,7 +83,7 @@ impl QuicServer {
             .with_single_cert(vec![cert], key)?;
 
         let server_config = ServerConfig::with_crypto(Arc::new(
-            quinn::crypto::rustls::QuicServerConfig::try_from(server_crypto)?
+            quinn::crypto::rustls::QuicServerConfig::try_from(server_crypto)?,
         ));
 
         let endpoint = Endpoint::server(server_config, bind)?;
@@ -91,15 +95,13 @@ impl QuicServer {
     /// Accept incoming connection
     pub async fn accept(&self) -> Option<QuicConnection> {
         match self.endpoint.accept().await {
-            Some(incoming) => {
-                match incoming.await {
-                    Ok(connection) => Some(QuicConnection { connection }),
-                    Err(e) => {
-                        error!("QUIC accept error: {}", e);
-                        None
-                    }
+            Some(incoming) => match incoming.await {
+                Ok(connection) => Some(QuicConnection { connection }),
+                Err(e) => {
+                    error!("QUIC accept error: {}", e);
+                    None
                 }
-            }
+            },
             None => None,
         }
     }

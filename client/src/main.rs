@@ -8,7 +8,7 @@ use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 use apfsds_client::config::ClientConfig;
-use apfsds_client::{socks5, emergency};
+use apfsds_client::{emergency, socks5};
 
 /// APFSDS Client - Privacy-preserving network proxy
 #[derive(Parser, Debug)]

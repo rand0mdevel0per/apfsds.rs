@@ -4,7 +4,7 @@
 
 mod integration_harness;
 
-use integration_harness::{cleanup, spawn_daemon, wait_for_port, TestConfig};
+use integration_harness::{TestConfig, cleanup, spawn_daemon, wait_for_port};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;

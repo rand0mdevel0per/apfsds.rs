@@ -5,14 +5,12 @@
 
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use russh::{
-    client, server, MethodSet, ChannelId, Channel,
-};
+use russh::{Channel, ChannelId, MethodSet, client, server};
 use russh_keys::key::KeyPair;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
-use tracing::{info, error, debug};
+use tracing::{debug, error, info};
 
 // ==================== Client ====================
 
@@ -26,7 +24,7 @@ impl client::Handler for ClientHandler {
         &mut self,
         _server_public_key: &russh_keys::key::PublicKey,
     ) -> Result<bool, Self::Error> {
-        // In this specific fallback mode, we might blindly trust the key 
+        // In this specific fallback mode, we might blindly trust the key
         // OR verify it against a known pinned key.
         // For simplicity/fallback, we return true (trust on first use / pinned logic elsewhere)
         Ok(true)
@@ -44,16 +42,16 @@ impl SshClient {
             ..Default::default()
         };
         let config = Arc::new(config);
-        
+
         let sh = ClientHandler;
         let mut session = client::connect(config, addr, sh).await?;
-        
+
         // Authenticate
         let auth_res = session.authenticate_publickey(user, Arc::new(key)).await?;
         if !auth_res {
             return Err(anyhow!("SSH authentication failed"));
         }
-        
+
         info!("SSH connected to {}", addr);
         Ok(Self { session })
     }
@@ -71,7 +69,7 @@ struct ServerHandler;
 
 impl server::Server for ServerHandler {
     type Handler = Self;
-    
+
     fn new_client(&mut self, _peer_addr: Option<SocketAddr>) -> Self {
         Self
     }
@@ -117,7 +115,7 @@ impl SshServer {
     pub async fn accept(&self) -> Result<()> {
         let (stream, addr) = self.listener.accept().await?;
         info!("SSH incoming connection from {}", addr);
-        
+
         let config = self.config.clone();
         tokio::spawn(async move {
             let handler = ServerHandler;

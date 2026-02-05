@@ -92,11 +92,12 @@ async fn main() -> Result<()> {
 
     match args.command {
         Commands::Stats => {
-            let resp = client.get(format!("{}/admin/stats", args.api))
+            let resp = client
+                .get(format!("{}/admin/stats", args.api))
                 .send()
                 .await?
                 .error_for_status()?;
-            
+
             let stats: SystemStats = resp.json().await?;
             let table = tabled::Table::new(vec![stats]).to_string();
             println!("{}", table);
@@ -107,11 +108,12 @@ async fn main() -> Result<()> {
                     username,
                     quota_bytes: quota,
                 };
-                let resp = client.post(format!("{}/admin/users", args.api))
+                let resp = client
+                    .post(format!("{}/admin/users", args.api))
                     .json(&req)
                     .send()
                     .await?;
-                
+
                 if resp.status().is_success() {
                     println!("User created successfully");
                 } else {
@@ -119,10 +121,11 @@ async fn main() -> Result<()> {
                 }
             }
             UserCommands::Delete { id } => {
-                let resp = client.delete(format!("{}/admin/users/{}", args.api, id))
+                let resp = client
+                    .delete(format!("{}/admin/users/{}", args.api, id))
                     .send()
                     .await?;
-                
+
                 if resp.status().is_success() {
                     println!("User deleted successfully");
                 } else {
@@ -131,24 +134,29 @@ async fn main() -> Result<()> {
             }
         },
         Commands::Node { cmd } => match cmd {
-            NodeCommands::Register { name, endpoint, weight } => {
+            NodeCommands::Register {
+                name,
+                endpoint,
+                weight,
+            } => {
                 let req = RegisterNodeRequest {
                     name,
                     endpoint,
                     weight,
                 };
-                let resp = client.post(format!("{}/admin/nodes", args.api))
+                let resp = client
+                    .post(format!("{}/admin/nodes", args.api))
                     .json(&req)
                     .send()
                     .await?;
-                    
+
                 if resp.status().is_success() {
                     println!("Node registered successfully");
                 } else {
                     eprintln!("Error: {}", resp.status());
                 }
             }
-        }
+        },
     }
 
     Ok(())

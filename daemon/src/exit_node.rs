@@ -62,8 +62,8 @@ impl ExitService {
                 config.packet_information(false);
             });
 
-            let dev = tun::create(&config)
-                .map_err(|e| anyhow::anyhow!("Failed to create TUN: {}", e))?;
+            let dev =
+                tun::create(&config).map_err(|e| anyhow::anyhow!("Failed to create TUN: {}", e))?;
             Arc::new(std::sync::Mutex::new(dev))
         };
 
@@ -180,8 +180,7 @@ impl ExitService {
         let virtual_ip = self.alloc_ip();
 
         // 2. Rewrite Source IP (NAT)
-        if let Ok(mut header) =
-            etherparse::Ipv4Header::from_slice(&packet.payload).map(|(h, _)| h)
+        if let Ok(mut header) = etherparse::Ipv4Header::from_slice(&packet.payload).map(|(h, _)| h)
         {
             header.source = virtual_ip.octets();
             // Recalculate checksum?
@@ -372,7 +371,14 @@ async fn run_reverse_mode(config: &DaemonConfig) -> Result<()> {
 
     // Connect to handler with retry logic
     loop {
-        match connect_to_handler(handler_endpoint, node_name, preferred_group_id, service.clone()).await {
+        match connect_to_handler(
+            handler_endpoint,
+            node_name,
+            preferred_group_id,
+            service.clone(),
+        )
+        .await
+        {
             Ok(_) => {
                 info!("Connection to handler closed, reconnecting in 5s...");
             }
@@ -418,7 +424,8 @@ async fn connect_to_handler(
         loop {
             match ws_receiver.next().await {
                 Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(data))) => {
-                    if let Ok(msg) = rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data) {
+                    if let Ok(msg) = rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data)
+                    {
                         if let ControlMessage::GroupList { groups } = msg {
                             info!("Received {} available groups from handler", groups.len());
 
@@ -427,20 +434,28 @@ async fn connect_to_handler(
                                 info!("Configured group {} found in available groups", group_id);
                                 break group_id;
                             } else {
-                                warn!("Configured group {} not found, falling back to auto-select", group_id);
+                                warn!(
+                                    "Configured group {} not found, falling back to auto-select",
+                                    group_id
+                                );
                                 // Fall back to auto-select
-                                let selected = groups.iter()
+                                let selected = groups
+                                    .iter()
                                     .min_by_key(|g| g.load)
                                     .ok_or_else(|| anyhow::anyhow!("No groups available"))?;
-                                info!("Auto-selected group {} ({}), load: {}%",
-                                    selected.group_id, selected.name, selected.load);
+                                info!(
+                                    "Auto-selected group {} ({}), load: {}%",
+                                    selected.group_id, selected.name, selected.load
+                                );
                                 break selected.group_id;
                             }
                         }
                     }
                 }
                 Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) => {
-                    return Err(anyhow::anyhow!("Handler closed connection before sending groups"));
+                    return Err(anyhow::anyhow!(
+                        "Handler closed connection before sending groups"
+                    ));
                 }
                 Some(Err(e)) => {
                     return Err(anyhow::anyhow!("WebSocket error: {}", e));
@@ -456,24 +471,30 @@ async fn connect_to_handler(
         loop {
             match ws_receiver.next().await {
                 Some(Ok(tokio_tungstenite::tungstenite::Message::Binary(data))) => {
-                    if let Ok(msg) = rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data) {
+                    if let Ok(msg) = rkyv::from_bytes::<ControlMessage, rkyv::rancor::Error>(&data)
+                    {
                         if let ControlMessage::GroupList { groups } = msg {
                             info!("Received {} available groups from handler", groups.len());
 
                             // Select group with lowest load
-                            let selected = groups.iter()
+                            let selected = groups
+                                .iter()
                                 .min_by_key(|g| g.load)
                                 .ok_or_else(|| anyhow::anyhow!("No groups available"))?;
 
-                            info!("Auto-selected group {} ({}), load: {}%",
-                                selected.group_id, selected.name, selected.load);
+                            info!(
+                                "Auto-selected group {} ({}), load: {}%",
+                                selected.group_id, selected.name, selected.load
+                            );
 
                             break selected.group_id;
                         }
                     }
                 }
                 Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) => {
-                    return Err(anyhow::anyhow!("Handler closed connection before sending groups"));
+                    return Err(anyhow::anyhow!(
+                        "Handler closed connection before sending groups"
+                    ));
                 }
                 Some(Err(e)) => {
                     return Err(anyhow::anyhow!("WebSocket error: {}", e));
@@ -487,9 +508,15 @@ async fn connect_to_handler(
     };
 
     // Send group selection back to handler
-    let select_msg = ControlMessage::GroupSelect { group_id: selected_group_id };
+    let select_msg = ControlMessage::GroupSelect {
+        group_id: selected_group_id,
+    };
     if let Ok(msg_bytes) = rkyv::to_bytes::<rkyv::rancor::Error>(&select_msg) {
-        ws_sender.send(tokio_tungstenite::tungstenite::Message::Binary(msg_bytes.to_vec().into())).await?;
+        ws_sender
+            .send(tokio_tungstenite::tungstenite::Message::Binary(
+                msg_bytes.to_vec().into(),
+            ))
+            .await?;
         info!("Sent group selection to handler");
     } else {
         return Err(anyhow::anyhow!("Failed to serialize group selection"));

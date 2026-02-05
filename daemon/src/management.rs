@@ -7,15 +7,15 @@
 
 use crate::config::DaemonConfig;
 use crate::connection_registry::ConnectionRegistry;
-use apfsds_raft;
 use anyhow::Result;
+use apfsds_raft;
 use axum::{
+    Router,
     extract::{Json, Path, State},
     http::StatusCode,
-    response::IntoResponse,
     response::Html,
+    response::IntoResponse,
     routing::{delete, get, post},
-    Router,
 };
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -91,7 +91,8 @@ struct MembershipRequest {
 
 // Basic Dashboard Handler
 async fn dashboard() -> Html<&'static str> {
-    Html(r#"<!DOCTYPE html>
+    Html(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -105,7 +106,8 @@ async fn dashboard() -> Html<&'static str> {
         <p><a href="/metrics">Prometheus Metrics</a></p>
     </div>
 </body>
-</html>"#)
+</html>"#,
+    )
 }
 
 async fn change_cluster_membership(
@@ -115,7 +117,9 @@ async fn change_cluster_membership(
     if let Some(raft) = &state.raft_node {
         let members: std::collections::HashSet<u64> = payload.members.into_iter().collect();
         match raft.change_membership(members).await {
-            Ok(_) => Json(serde_json::json!({ "status": "success", "message": "Membership change initiated" })),
+            Ok(_) => Json(
+                serde_json::json!({ "status": "success", "message": "Membership change initiated" }),
+            ),
             Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
         }
     } else {
@@ -133,10 +137,7 @@ async fn create_user(
     (StatusCode::CREATED, Json("User created"))
 }
 
-async fn delete_user(
-    State(_state): State<AppState>,
-    Path(id): Path<u64>,
-) -> impl IntoResponse {
+async fn delete_user(State(_state): State<AppState>, Path(id): Path<u64>) -> impl IntoResponse {
     info!("Delete user request: {}", id);
     // Note: Database integration pending
     tracing::warn!("User deletion in memory only (DB integration pending)");
