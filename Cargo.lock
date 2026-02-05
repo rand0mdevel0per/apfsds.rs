@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "apfsds-client"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "apfsds-crypto",
@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "apfsds-crypto"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -199,7 +199,7 @@ dependencies = [
 
 [[package]]
 name = "apfsds-daemon"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "apfsds-crypto",
@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "apfsds-obfuscation"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytes",
  "fastrand",
@@ -254,7 +254,7 @@ dependencies = [
 
 [[package]]
 name = "apfsds-protocol"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "apfsds-raft"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "apfsds-protocol",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "apfsds-storage"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "apfsds-protocol",
  "byteorder",
@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "apfsds-transport"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "apfsds-crypto",
